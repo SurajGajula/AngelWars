@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VibeJam — Party Gauntlet</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Party Gauntlet</h1>
+      <p class="tagline">
+        Build a party of three, fight through 100 rounds, and after each win pick one of three stat
+        rewards (+1, +2, or +5 to max HP or attack).
+      </p>
+    </header>
+
+    <section id="screen-party" class="screen active">
+      <div class="party-layout">
+        <div class="party-layout-main">
+          <h2>Choose your party (3 heroes)</h2>
+          <div id="party-picker" class="grid party-grid"></div>
+          <button id="btn-start" class="btn btn-primary" type="button" disabled>
+            Begin the gauntlet
+          </button>
+        </div>
+        <aside
+          id="party-inspect"
+          class="status-panel party-inspect"
+          aria-label="Hero details"
+        >
+          <p class="status-panel-hint">Click a hero card for full stats and what each skill does.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section id="screen-battle" class="screen battle-screen">
+      <div class="toolbar">
+        <span id="round-label" class="round-pill">Round 1 / 100</span>
+        <span id="turn-label" class="round-pill">Turn 0</span>
+        <span id="enemy-name" class="round-pill"></span>
+        <button id="btn-mute-bgm" class="btn round-pill mute-btn" type="button" aria-pressed="false">
+          Mute
+        </button>
+      </div>
+
+      <div class="battle-mid-scroll">
+        <div class="battle-arena" aria-hidden="true">
+          <div class="arena-col arena-col-allies">
+            <div id="arena-party" class="arena-sprites"></div>
+          </div>
+          <div class="arena-col arena-col-foe">
+            <div id="arena-enemy" class="arena-sprites"></div>
+          </div>
+        </div>
+
+        <div class="battle-right-col">
+          <div class="battle-right-body">
+            <div id="battle-panel-hud" class="battle-panel battle-panel-hud is-active" aria-hidden="false">
+              <div id="enemy-hud" class="enemy-hud" hidden></div>
+              <div id="party-hud" class="party-hud"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-end" class="screen">
+      <h2 id="end-title">Run complete</h2>
+      <p id="end-body" class="tagline"></p>
+      <button id="btn-restart" class="btn btn-primary" type="button">Play again</button>
+    </section>
+
+    <div id="modal-upgrades" class="modal-backdrop" role="dialog" aria-modal="true">
+      <div class="modal">
+        <h2>Round clear — pick a stat reward</h2>
+        <p class="tagline" style="margin-top: 0">Choose one of three +1 / +2 / +5 stat bumps.</p>
+        <div id="upgrade-list" class="upgrade-options"></div>
+      </div>
+    </div>
+
+    <audio id="bgm" loop preload="auto">
+      <source src="/music_134186728357891_Y5h21ukDoks2Lwq5SCpPmq_yukdxe.mp3" type="audio/mpeg" />
+    </audio>
+
+    <script type="module" src="/js/game.js"></script>
+  </body>
+</html>

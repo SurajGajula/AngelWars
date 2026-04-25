@@ -1,0 +1,524 @@
+:root {
+  --bg: #17130c;
+  --panel: #211a11;
+  --panel-2: #2b2216;
+  --border: #6d5429;
+  --text: #f2e6cc;
+  --muted: #c8af7a;
+  --accent: #c89f3d;
+  --accent-2: #e3bf64;
+  --enemy: #d5a64f;
+  --radius: 10px;
+  --font: "Manrope", "DM Sans", system-ui, sans-serif;
+  --font-heading: "Cinzel", "Times New Roman", serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 1rem;
+  width: min(1200px, 100%);
+  height: 100vh;
+  height: 100dvh;
+  margin-inline: auto;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+h1 {
+  font-family: var(--font-heading);
+  font-size: 1.35rem;
+  margin: 0 0 0.35rem;
+}
+
+.lead {
+  color: var(--muted);
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+h2 {
+  font-family: var(--font-heading);
+  font-size: 1rem;
+  margin: 1.25rem 0 0.65rem;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.35rem;
+}
+
+h2.enemies {
+  color: var(--enemy);
+}
+
+.top-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.top-nav-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+}
+
+.sprite-strip-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  max-width: 100%;
+}
+
+.sprite-strip-opt input {
+  flex-shrink: 0;
+}
+
+.pages {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tab-btn {
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  border-color: var(--accent);
+}
+
+.tab-btn.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(200 159 61 / 0.22);
+}
+
+.page {
+  display: none;
+  min-height: 0;
+}
+
+.page.is-active {
+  display: block;
+  height: 100%;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.sprite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px minmax(0, 1.6fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgb(42 51 72 / 0.5);
+}
+
+@media (max-width: 640px) {
+  .sprite-row {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+}
+
+.sprite-row .name {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.sprite-row .id {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+
+.preview {
+  width: 88px;
+  height: 88px;
+  border-radius: var(--radius);
+  border: 2px solid var(--border);
+  background-color: #2e2215;
+  background-image: linear-gradient(45deg, #1c1610 25%, transparent 25%),
+    linear-gradient(-45deg, #1c1610 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1c1610 75%),
+    linear-gradient(-45deg, transparent 75%, #1c1610 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.preview .ph {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.25rem;
+}
+
+.upload-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+input[type="file"] {
+  font-size: 0.78rem;
+  max-width: 100%;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.btn:hover {
+  border-color: var(--accent);
+}
+
+.btn-danger {
+  border-color: #8d6930;
+  color: var(--enemy);
+}
+
+.lead.small {
+  font-size: 0.82rem;
+  margin: 0 0 0.75rem;
+}
+
+.roster-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.import-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  font-weight: 600;
+}
+
+.roster-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  padding: 0.35rem 0.65rem;
+  margin-bottom: 1.5rem;
+}
+
+.roster-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgb(109 84 41 / 0.55);
+}
+
+.roster-row:last-child {
+  border-bottom: none;
+}
+
+.roster-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.roster-sprite {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.roster-inline-preview {
+  width: 56px;
+  height: 56px;
+  border-width: 1px;
+}
+
+.roster-inline-upload {
+  max-width: 170px;
+  font-size: 0.72rem;
+}
+
+.bg-uploader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.bg-preview {
+  width: 180px;
+  height: 180px;
+}
+
+.editor-dialog {
+  max-width: min(560px, 94vw);
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 0;
+}
+
+.editor-dialog::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.editor-dialog h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.editor-dialog form {
+  padding: 1rem 1.1rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-grid label,
+.skill-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.form-grid input,
+.form-grid textarea,
+.skill-form-grid input,
+.skill-form-grid select,
+.skill-form-grid textarea {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #1a150e;
+  color: var(--text);
+}
+
+.form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.skill-fs {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0 0 0.65rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.skill-fs legend {
+  font-size: 0.78rem;
+  color: var(--accent);
+  padding: 0 0.35rem;
+}
+
+.skill-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.55rem;
+}
+
+.skill-form-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+.skill-mod-fieldset {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+}
+
+.skill-mod-fieldset legend {
+  font-size: 0.78rem;
+  color: var(--accent);
+  padding: 0 0.35rem;
+}
+
+.skill-mod-fieldset .field-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+
+.skill-mod-fieldset .chk {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 1rem;
+  margin-top: 0.25rem;
+}
+
+.opt-hidden {
+  display: none !important;
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.confirm-dialog {
+  max-width: min(460px, 92vw);
+}
+
+.confirm-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+/* Authoritative mechanics docs (filled from mechanics.js) */
+.mechanics-doc {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.mechanics-doc h2 {
+  margin-top: 0;
+}
+
+.mechanics-doc-inner h3 {
+  font-size: 0.95rem;
+  margin: 1.1rem 0 0.45rem;
+  color: var(--text);
+  border-bottom: 1px solid rgb(109 84 41 / 0.6);
+  padding-bottom: 0.25rem;
+}
+
+.mechanics-doc-inner h3:first-child {
+  margin-top: 0;
+}
+
+.mechanics-doc-inner h4 {
+  font-size: 0.88rem;
+  margin: 0.85rem 0 0.35rem;
+  color: var(--accent);
+}
+
+.mechanics-doc-inner p,
+.mechanics-doc-inner li {
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.mechanics-doc-inner p strong {
+  color: var(--text);
+}
+
+.mechanics-doc-inner ul {
+  margin: 0.35rem 0 0.5rem 1.1rem;
+  padding: 0;
+}
+
+.mechanics-doc-lead {
+  margin-bottom: 0.75rem !important;
+}
+
+.mechanics-skill-block {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #1d160f;
+  border: 1px solid rgb(109 84 41 / 0.55);
+}
+
+.mechanics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-top: 0.45rem;
+}
+
+.mechanics-table th,
+.mechanics-table td {
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.45rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.mechanics-table th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.mechanics-table code {
+  font-size: 0.76rem;
+}
+
+@media (max-width: 720px) {
+  body {
+    padding: 0.75rem;
+  }
+
+  .mechanics-table {
+    display: block;
+    overflow-x: auto;
+  }
+}
