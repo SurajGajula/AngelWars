@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VibeJam — Dev tools</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Manrope:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="devtools.css" />
+  </head>
+  <body>
+    <nav class="top-nav" aria-label="Devtools sections">
+      <div class="top-nav-tabs">
+        <button type="button" class="tab-btn" data-page="docs">Docs</button>
+        <button type="button" class="tab-btn" data-page="allies">Ally edits</button>
+        <button type="button" class="tab-btn" data-page="enemies">Enemy edits</button>
+        <button type="button" class="tab-btn" data-page="background">Background</button>
+      </div>
+      <label class="sprite-strip-opt" title="Flood-fills near-white pixels connected to the image border into transparency. Uncheck to upload the file unchanged.">
+        <input type="checkbox" id="opt-strip-sprite-bg" checked />
+        <span>Strip white edge on sprite upload</span>
+      </label>
+    </nav>
+
+    <main class="pages">
+      <section id="page-docs" class="page mechanics-doc" aria-labelledby="mechanics-doc-title">
+        <h2 id="mechanics-doc-title">Combat mechanics &amp; skill JSON</h2>
+        <div id="mechanics-docs-host"></div>
+      </section>
+
+      <section id="page-allies" class="page" aria-labelledby="allies-title">
+        <h2 id="allies-title">Ally edits</h2>
+        <div class="roster-toolbar">
+          <button type="button" class="btn btn-danger" id="btn-remove-all-chars">
+            Remove all characters from list
+          </button>
+          <button type="button" class="btn" id="btn-add-char">Add blank character</button>
+        </div>
+        <div id="roster-table" class="roster-table"></div>
+      </section>
+
+      <section id="page-enemies" class="page" aria-labelledby="enemies-title">
+        <h2 id="enemies-title" class="enemies">Enemy edits</h2>
+        <div class="roster-toolbar">
+          <button type="button" class="btn btn-danger" id="btn-remove-all-enemies">Remove all enemies</button>
+          <button type="button" class="btn" id="btn-add-enemy">Add blank enemy</button>
+        </div>
+        <div id="enemy-table" class="roster-table"></div>
+      </section>
+
+      <section id="page-background" class="page" aria-labelledby="background-title">
+        <h2 id="background-title">Battle background</h2>
+        <p class="lead small">Upload an image for the battle sprite-area background. Uploads are normalized to 1:1 PNG.</p>
+        <div class="roster-table">
+          <div class="bg-uploader">
+            <div id="background-preview" class="preview bg-preview"><span class="ph">No background</span></div>
+            <div class="upload-wrap">
+              <input type="file" id="bg-upload-input" accept="image/png,image/*" aria-label="Upload battle background" />
+              <button type="button" class="btn btn-danger" id="bg-clear-btn">Clear background</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <dialog id="char-editor" class="editor-dialog">
+      <form id="char-editor-form">
+        <h3>Edit character</h3>
+        <div class="form-grid">
+          <label>Name <input name="cname" id="ec-name" required /></label>
+          <label>Auto id <input id="ec-id-preview" readonly /></label>
+          <label>Max HP <input name="chp" id="ec-hp" type="number" min="1" step="1" /></label>
+          <label>Attack <input name="catk" id="ec-atk" type="number" min="0" step="1" /></label>
+        </div>
+        <div class="dialog-actions">
+          <button type="submit" class="btn">Apply</button>
+          <button type="button" class="btn" id="char-editor-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="enemy-editor" class="editor-dialog">
+      <form id="enemy-editor-form">
+        <h3>Edit enemy</h3>
+        <div class="form-grid">
+          <label>Name <input name="ename" id="ee-name" required /></label>
+          <label>Auto id <input id="ee-id-preview" readonly /></label>
+          <label>Max HP <input id="ee-hp" type="number" min="1" step="1" /></label>
+          <label>Attack <input id="ee-atk" type="number" min="0" step="1" /></label>
+        </div>
+        <div class="dialog-actions">
+          <button type="submit" class="btn">Apply</button>
+          <button type="button" class="btn" id="enemy-editor-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="confirm-modal" class="editor-dialog confirm-dialog">
+      <form method="dialog" id="confirm-form">
+        <h3 id="confirm-title">Confirm action</h3>
+        <p id="confirm-message" class="confirm-message"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-danger" id="confirm-accept">Confirm</button>
+          <button type="button" class="btn" id="confirm-cancel">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="devtools.js"></script>
+  </body>
+</html>
