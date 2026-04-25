@@ -168,8 +168,12 @@ app.get("/devtools", (_req, res) => {
   res.sendFile(path.join(__dirname, "devtools", "index.html"));
 });
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`VibeJam dev server running on http://localhost:${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`VibeJam dev server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
 
