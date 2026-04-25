@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "build": "echo \"Static site: no build step required\"",
     "dev": "node server.js",
     "start": "node server.js"
   },
