@@ -161,6 +161,12 @@ app.delete("/api/sprites/:id", async (req, res) => {
 
 // --- Static ---
 app.use(express.static(__dirname));
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+app.get("/devtools", (_req, res) => {
+  res.sendFile(path.join(__dirname, "devtools", "index.html"));
+});
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
