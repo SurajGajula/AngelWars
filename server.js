@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PUBLIC_DIR = path.join(__dirname, "public");
 
 const PORT = Number(process.env.PORT || 8081);
 
@@ -39,10 +40,10 @@ app.post("/api/characters", async (req, res) => {
       res.status(400).json({ ok: false, error: "Body must be a JSON array." });
       return;
     }
-    const outPath = path.join(__dirname, "data", "characters.json");
+    const outPath = path.join(PUBLIC_DIR, "data", "characters.json");
     const text = `${JSON.stringify(list, null, 2)}\n`;
     await fs.writeFile(outPath, text, "utf8");
-    res.json({ ok: true, path: "data/characters.json", bytes: text.length });
+    res.json({ ok: true, path: "public/data/characters.json", bytes: text.length });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
@@ -55,10 +56,10 @@ app.post("/api/enemies", async (req, res) => {
       res.status(400).json({ ok: false, error: "Body must be a JSON array." });
       return;
     }
-    const outPath = path.join(__dirname, "data", "enemies.json");
+    const outPath = path.join(PUBLIC_DIR, "data", "enemies.json");
     const text = `${JSON.stringify(list, null, 2)}\n`;
     await fs.writeFile(outPath, text, "utf8");
-    res.json({ ok: true, path: "data/enemies.json", bytes: text.length });
+    res.json({ ok: true, path: "public/data/enemies.json", bytes: text.length });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
   }
@@ -80,7 +81,7 @@ app.post("/api/sprites/:id", upload.single("file"), async (req, res) => {
       res.status(400).json({ ok: false, error: "Only PNG supported for now (image/png)." });
       return;
     }
-    const dir = path.join(__dirname, "sprites");
+    const dir = path.join(PUBLIC_DIR, "sprites");
     await ensureDir(dir);
     const outPath = path.join(dir, `${id}.png`);
     await fs.writeFile(outPath, file.buffer);
@@ -101,11 +102,11 @@ app.post("/api/background", upload.single("file"), async (req, res) => {
       res.status(400).json({ ok: false, error: "Only PNG supported for now (image/png)." });
       return;
     }
-    const bgDir = path.join(__dirname, "backgrounds");
-    const dataDir = path.join(__dirname, "data");
+    const bgDir = path.join(PUBLIC_DIR, "backgrounds");
+    const dataDir = path.join(PUBLIC_DIR, "data");
     await Promise.all([ensureDir(bgDir), ensureDir(dataDir)]);
     const rel = "backgrounds/arena.png";
-    await fs.writeFile(path.join(__dirname, rel), file.buffer);
+    await fs.writeFile(path.join(PUBLIC_DIR, rel), file.buffer);
     const cfg = {
       arenaSpriteBackground: rel,
       updatedAt: Date.now(),
@@ -121,7 +122,7 @@ app.post("/api/background", upload.single("file"), async (req, res) => {
 app.delete("/api/background", async (_req, res) => {
   try {
     const rel = "backgrounds/arena.png";
-    const imgPath = path.join(__dirname, rel);
+    const imgPath = path.join(PUBLIC_DIR, rel);
     try {
       await fs.unlink(imgPath);
     } catch (e) {
@@ -132,8 +133,8 @@ app.delete("/api/background", async (_req, res) => {
       updatedAt: Date.now(),
     };
     const cfgText = `${JSON.stringify(cfg, null, 2)}\n`;
-    await ensureDir(path.join(__dirname, "data"));
-    await fs.writeFile(path.join(__dirname, "data", "background.json"), cfgText, "utf8");
+    await ensureDir(path.join(PUBLIC_DIR, "data"));
+    await fs.writeFile(path.join(PUBLIC_DIR, "data", "background.json"), cfgText, "utf8");
     res.json({ ok: true, background: cfg });
   } catch (e) {
     res.status(500).json({ ok: false, error: e?.message || String(e) });
@@ -147,7 +148,7 @@ app.delete("/api/sprites/:id", async (req, res) => {
       res.status(400).json({ ok: false, error: "Invalid id." });
       return;
     }
-    const outPath = path.join(__dirname, "sprites", `${id}.png`);
+    const outPath = path.join(PUBLIC_DIR, "sprites", `${id}.png`);
     try {
       await fs.unlink(outPath);
     } catch (e) {
@@ -160,9 +161,9 @@ app.delete("/api/sprites/:id", async (req, res) => {
 });
 
 // --- Static ---
-app.use(express.static(__dirname));
+app.use(express.static(PUBLIC_DIR));
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 app.get("/devtools", (_req, res) => {
   res.sendFile(path.join(__dirname, "devtools", "index.html"));

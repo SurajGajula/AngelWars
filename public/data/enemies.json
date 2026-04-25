@@ -3,7 +3,7 @@
     "id": "absolution",
     "name": "Absolution",
     "baseStats": {
-      "maxHp": 80,
+      "maxHp": 100,
       "attack": 10
     }
   },
@@ -11,7 +11,7 @@
     "id": "golgotha",
     "name": "Golgotha",
     "baseStats": {
-      "maxHp": 80,
+      "maxHp": 100,
       "attack": 10
     }
   }

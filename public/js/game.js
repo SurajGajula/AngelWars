@@ -153,16 +153,27 @@ async function filterDefsWithSprites(defs) {
  * @property {number} [cycleIndex]
  */
 
-function defaultRelicsForDef(def, kind) {
+function defaultRelicsForDef(def, kind, opts = {}) {
   const id = String(def?.id || "").toLowerCase();
   if (kind === "enemy") {
-    return [{ id: "rapture", stacks: 0, intervalTurns: 10, counter: 10 }];
+    const scale = Number(opts.enemyScale || 1);
+    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    return [
+      { id: "enemy_scale", stacks: 0, valueScale: Number(safeScale.toFixed(2)) },
+      { id: "rapture", stacks: 0, intervalTurns: 10, counter: 10 },
+    ];
   }
   if (id === "chariot") {
     return [{ id: "chariot_third_strike", stacks: 0, intervalTurns: 3, counter: 3 }];
   }
   if (id === "seraph") {
     return [{ id: "seraph_heal", stacks: 0, valuePercent: 10 }];
+  }
+  if (id === "judgement") {
+    return [{ id: "judgement_round_bonus", stacks: 0, valueRound: true }];
+  }
+  if (id === "justice") {
+    return [{ id: "justice_equal_atk", stacks: 0 }];
   }
   return [];
 }
@@ -181,13 +192,17 @@ function buffBonusForStat(f, stat) {
 
 function effectiveStats(f) {
   const rapture = (f.relics || []).find((r) => r.id === "rapture");
+  const enemyScaleRelic = (f.relics || []).find((r) => r.id === "enemy_scale");
   const raptureStacks = Math.max(0, Number(rapture?.stacks || 0));
   const raptureMult = 1 + Math.min(10, raptureStacks) * 0.1;
+  const enemyScale = Math.max(0.1, Number(enemyScaleRelic?.valueScale || 1));
   const attack = f.attack + buffBonusForStat(f, "attack");
+  const relicMult = raptureMult * enemyScale;
   return {
-    attack: Math.max(0, Math.floor(attack * raptureMult)),
-    maxHp: Math.max(1, Math.floor(f.maxHp * raptureMult)),
+    attack: Math.max(0, Math.floor(attack * relicMult)),
+    maxHp: Math.max(1, Math.floor(f.maxHp * relicMult)),
     raptureStacks,
+    enemyScale,
   };
 }
 
@@ -227,16 +242,16 @@ function registerSkillAction(actor) {
 function processRelicsOnTurnAdvance() {
   for (const unit of allLivingCombatants()) {
     for (const relic of unit.relics || []) {
+      // Chariot relic is attack-based; only tick it when Chariot attacks.
+      if (relic.id !== "rapture") continue;
       const interval = Math.max(1, Number(relic.intervalTurns || 0));
       if (!interval) continue;
       const counter = Math.max(1, Number(relic.counter || interval));
       if (counter <= 1) {
-        if (relic.id === "rapture") {
-          relic.stacks = Math.min(10, Math.max(0, Number(relic.stacks || 0)) + 1);
-          logLine(
-            `<span class="system">${escapeHtml(unit.def.name)} gains <strong>rapture</strong> ×${relic.stacks} (+${relic.stacks * 10}% ATK / MaxHP).</span>`
-          );
-        }
+        relic.stacks = Math.min(10, Math.max(0, Number(relic.stacks || 0)) + 1);
+        logLine(
+          `<span class="system">${escapeHtml(unit.def.name)} gains <strong>rapture</strong> ×${relic.stacks} (+${relic.stacks * 10}% ATK / MaxHP).</span>`
+        );
         relic.counter = interval;
       } else {
         relic.counter = counter - 1;
@@ -326,15 +341,15 @@ function heroFromDef(def) {
 function enemyFromDef(def, round) {
   const scale = roundScale(round);
   const s = def.baseStats;
-  const maxHp = Math.round(s.maxHp * scale);
+  const scaledHp = Math.max(1, Math.round(s.maxHp * scale));
   return {
     kind: "enemy",
     def,
-    hp: maxHp,
-    maxHp,
-    attack: Math.round(s.attack * scale * 10) / 10,
+    hp: scaledHp,
+    maxHp: s.maxHp,
+    attack: s.attack,
     buffs: [],
-    relics: defaultRelicsForDef(def, "enemy"),
+    relics: defaultRelicsForDef(def, "enemy", { enemyScale: scale }),
     cycleIndex: 0,
   };
 }
@@ -484,6 +499,8 @@ function performSkill(actor, skill) {
     const tgt = state.enemy;
     if (!tgt || tgt.hp <= 0) return;
     let dealt = computeDamage(actor);
+    const judgementRelic = (actor.relics || []).find((r) => r.id === "judgement_round_bonus");
+    if (judgementRelic) dealt += Math.max(1, Number(state.round || 1));
     const chariotRelic = (actor.relics || []).find((r) => r.id === "chariot_third_strike");
     if (chariotRelic) {
       const cur = Math.max(1, Number(chariotRelic.counter || 3));
@@ -493,6 +510,13 @@ function performSkill(actor, skill) {
       } else {
         chariotRelic.counter = cur - 1;
       }
+    }
+    const justice = aliveHeroes().find((h) => h.def.id === "justice" && (h.relics || []).some((r) => r.id === "justice_equal_atk"));
+    if (justice && actor !== justice) {
+      const justiceAtk = effectiveStats(justice).attack;
+      const actorAtk = effectiveStats(actor).attack;
+      const hasPeerMatch = aliveHeroes().some((h) => h !== justice && effectiveStats(h).attack === justiceAtk);
+      if (hasPeerMatch && actorAtk === justiceAtk) dealt = Math.floor(dealt * 1.5);
     }
     applyDamage(tgt, dealt);
     if (dealt > 0) {
@@ -659,8 +683,12 @@ function relicChipHtml(relic) {
   const interval = Math.max(0, Number(relic?.intervalTurns || 0));
   const curCounter = Math.max(0, Number(relic?.counter || interval || 0));
   const pct = Math.max(0, Number(relic?.valuePercent || 0));
-  const counterValue = pct > 0 ? pct : interval > 0 ? curCounter : 0;
-  const counter = counterValue > 0 ? `<span class="relic-counter">${counterValue}</span>` : "";
+  const scaleValue = Number(relic?.valueScale || 0);
+  const showsRound = !!relic?.valueRound;
+  const roundCounter = Math.max(1, Number(state.round || 1));
+  const scaleCounterText = scaleValue > 0 ? scaleValue.toFixed(2) : "";
+  const counterValue = showsRound ? roundCounter : scaleValue > 0 ? scaleCounterText : pct > 0 ? pct : interval > 0 ? curCounter : 0;
+  const counter = counterValue ? `<span class="relic-counter">${counterValue}</span>` : "";
   const title =
     id === "rapture"
       ? `Rapture: +10% ATK/MaxHP every ${interval || 10} turns (current +${stackN * 10}%)`
@@ -668,6 +696,12 @@ function relicChipHtml(relic) {
         ? `Seraph Relic: attacks heal allies for ${pct || 10}% max HP`
         : id === "chariot_third_strike"
           ? "Chariot Relic: every 3rd attack deals double damage"
+          : id === "judgement_round_bonus"
+            ? "Judgement Relic: each attack deals bonus damage equal to current round"
+            : id === "justice_equal_atk"
+              ? "Justice Relic: allies with the same ATK as Justice deal 1.5x damage"
+              : id === "enemy_scale"
+              ? `Enemy Scale: multiplies enemy base ATK/MaxHP by ${scaleValue || 1}`
         : id;
   return `<span class="relic-chip" title="${escapeHtml(title)}" data-relic-tip="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${counter}</span>`;
 }
