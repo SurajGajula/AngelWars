@@ -1,13 +1,15 @@
 {
-  "cleanUrls": true,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/",
-      "destination": "/index.html"
+      "handle": "filesystem"
     },
     {
-      "source": "/devtools",
-      "destination": "/devtools/index.html"
+      "src": "^/$",
+      "dest": "/index.html"
+    },
+    {
+      "src": "^/devtools/?$",
+      "dest": "/devtools/index.html"
     }
   ]
 }
