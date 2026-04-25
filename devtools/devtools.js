@@ -8,12 +8,12 @@ import {
   normalizeSupportBuffStackCount,
   normalizeSupportStat,
   buildMechanicsDocumentationHtml,
-} from "../game/js/mechanics.js";
+} from "../js/mechanics.js";
 import { stripLightEdgeBackgroundPng } from "./spriteBackground.js";
 
-const DATA_CHAR = "../game/data/characters.json";
-const DATA_ENEMY = "../game/data/enemies.json";
-const DATA_BG = "../game/data/background.json";
+const DATA_CHAR = "../data/characters.json";
+const DATA_ENEMY = "../data/enemies.json";
+const DATA_BG = "../data/background.json";
 
 const SUPPORT_STATS = ["attack", "maxHp"];
 
@@ -281,7 +281,7 @@ async function saveRosterToCharactersFile(silent = false) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) throw new Error(data.error || "Save failed");
     bundledChars = clone(roster);
-    if (!silent) setStatus("Saved to game/data/characters.json on disk. Commit it for deploy.", "ok");
+    if (!silent) setStatus("Saved to data/characters.json on disk. Commit it for deploy.", "ok");
   } catch (e) {
     setStatus(
       `Save failed (${e?.message || e}). Start the npm dev server (npm install && npm run dev).`,
@@ -301,7 +301,7 @@ async function saveEnemiesToFile(silent = false) {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.ok) throw new Error(data.error || "Save failed");
-    if (!silent) setStatus("Saved to game/data/enemies.json on disk. Commit it for deploy.", "ok");
+    if (!silent) setStatus("Saved to data/enemies.json on disk. Commit it for deploy.", "ok");
   } catch (e) {
     setStatus(`Enemy save failed (${e?.message || e}).`, "err");
   }
@@ -743,11 +743,11 @@ function confirmDangerAction(title, message, confirmLabel = "Confirm") {
 }
 
 function previewUrlForId(id) {
-  return `../game/sprites/${id}.png?ts=${Date.now()}`;
+  return `../sprites/${id}.png?ts=${Date.now()}`;
 }
 
 function previewUrlForBackground() {
-  return `../game/backgrounds/arena.png?ts=${Date.now()}`;
+  return `../backgrounds/arena.png?ts=${Date.now()}`;
 }
 
 function renderPreview(box, id) {
@@ -814,7 +814,7 @@ function rowTemplate(def) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || "Upload failed");
       renderPreview(preview, def.id);
-      setStatus(`Saved sprite for ${def.name} (${def.id}) to game/sprites/. Commit for deploy.`, "ok");
+      setStatus(`Saved sprite for ${def.name} (${def.id}) to sprites/. Commit for deploy.`, "ok");
     } catch (e) {
       setStatus(`Save failed: ${e?.message || e}`, "err");
     }
@@ -869,7 +869,7 @@ function spriteControlsForDef(def) {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data.error || "Upload failed");
       renderPreview(preview, def.id);
-      setStatus(`Saved sprite for ${def.name} (${def.id}) to game/sprites/. Commit for deploy.`, "ok");
+      setStatus(`Saved sprite for ${def.name} (${def.id}) to sprites/. Commit for deploy.`, "ok");
     } catch (e) {
       setStatus(`Save failed: ${e?.message || e}`, "err");
     }
@@ -971,7 +971,7 @@ function renderEnemyTable() {
 }
 
 async function refreshSpriteCache() {
-  // no-op: sprites are file-based under game/sprites/
+  // no-op: sprites are file-based under sprites/
 }
 
 function renderAll() {
@@ -1058,7 +1058,7 @@ async function main() {
       fetch(DATA_ENEMY),
       fetch(DATA_BG).catch(() => null),
     ]);
-    if (!cRes.ok || !eRes.ok) throw new Error("Could not load game JSON.");
+    if (!cRes.ok || !eRes.ok) throw new Error("Could not load game data JSON.");
     bundledChars = normalizeRoster(await cRes.json());
     enemyDefs = normalizeEnemies(await eRes.json());
     if (bRes && bRes.ok) await bRes.json().catch(() => ({}));

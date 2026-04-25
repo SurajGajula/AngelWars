@@ -1,5 +1,5 @@
 /**
- * IndexedDB: sprite blobs only (devtools uploads). Character data lives in game/data/*.json.
+ * IndexedDB: sprite blobs only (devtools uploads). Character data lives in data/*.json.
  */
 const DB_NAME = "VibeJamSpriteDev";
 const DB_VERSION = 3;
