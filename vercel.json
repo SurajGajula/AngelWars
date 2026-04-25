@@ -1,20 +1,16 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "server.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "functions": {
-    "server.js": {
-      "includeFiles": "{index.html,styles.css,js/**,data/**,sprites/**,backgrounds/**,devtools/**,music_*.mp3,holy_attack_hit.wav}"
-    }
-  },
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "handle": "filesystem"
+    },
+    {
+      "src": "^/devtools/?$",
+      "dest": "/devtools/index.html"
+    },
+    {
+      "src": "^/$",
+      "dest": "/index.html"
     }
   ]
 }
