@@ -176,10 +176,14 @@ function defaultRelicsForDef(def, kind, opts = {}) {
   if (kind === "enemy") {
     const scale = Number(opts.enemyScale || 1);
     const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-    return [
+    const relics = [
       { id: "enemy_scale", stacks: 0, valueScale: Number(safeScale.toFixed(2)) },
       { id: "rapture", stacks: 0, intervalTurns: 10, counter: 10 },
     ];
+    if (id === "golgotha") {
+      relics.push({ id: "golgotha_heartsear", stacks: 1, intervalTurns: 3, counter: 3 });
+    }
+    return relics;
   }
   if (id === "chariot") {
     return [{ id: "chariot_third_strike", stacks: 0, intervalTurns: 3, counter: 3 }];
@@ -260,19 +264,46 @@ function registerSkillAction(actor) {
 function processRelicsOnTurnAdvance() {
   for (const unit of allLivingCombatants()) {
     for (const relic of unit.relics || []) {
-      // Chariot relic is attack-based; only tick it when Chariot attacks.
-      if (relic.id !== "rapture") continue;
-      const interval = Math.max(1, Number(relic.intervalTurns || 0));
-      if (!interval) continue;
-      const counter = Math.max(1, Number(relic.counter || interval));
-      if (counter <= 1) {
-        relic.stacks = Math.min(10, Math.max(0, Number(relic.stacks || 0)) + 1);
-        logLine(
-          `<span class="system">${escapeHtml(unit.def.name)} gains <strong>rapture</strong> ×${relic.stacks} (+${relic.stacks * 10}% ATK / MaxHP).</span>`
-        );
-        relic.counter = interval;
-      } else {
-        relic.counter = counter - 1;
+      if (relic.id === "rapture") {
+        const interval = Math.max(1, Number(relic.intervalTurns || 0));
+        const counter = Math.max(1, Number(relic.counter || interval));
+        if (counter <= 1) {
+          relic.stacks = Math.min(10, Math.max(0, Number(relic.stacks || 0)) + 1);
+          logLine(
+            `<span class="system">${escapeHtml(unit.def.name)} gains <strong>rapture</strong> ×${relic.stacks} (+${relic.stacks * 10}% ATK / MaxHP).</span>`
+          );
+          relic.counter = interval;
+        } else {
+          relic.counter = counter - 1;
+        }
+        continue;
+      }
+      if (relic.id === "golgotha_heartsear" && unit.kind === "enemy") {
+        const interval = Math.max(1, Number(relic.intervalTurns || 3));
+        const counter = Math.max(1, Number(relic.counter || interval));
+        const roundStacks = Math.min(5, Math.floor((Math.max(1, Number(state.round || 1)) - 1) / 20) + 1);
+        relic.stacks = roundStacks;
+        if (counter <= 1) {
+          const target = aliveHeroes().reduce(
+            (best, h) => {
+              if (!best) return h;
+              return h.hp > best.hp ? h : best;
+            },
+            null
+          );
+          if (target) {
+            const pct = 0.1 * roundStacks;
+            const dmg = Math.max(1, Math.floor(Math.max(0, Number(target.maxHp || 0)) * pct));
+            applyDamage(target, dmg);
+            queueCombatFloat(target.def.id, `-${dmg}`, "damage");
+            logLine(
+              `<span class="enemy">${escapeHtml(unit.def.name)}</span>'s <strong>Heartsear</strong> scorches <span class="player">${escapeHtml(target.def.name)}</span> for <strong>${dmg}</strong> (${Math.round(pct * 100)}% max HP).`
+            );
+          }
+          relic.counter = interval;
+        } else {
+          relic.counter = counter - 1;
+        }
       }
     }
   }
@@ -766,6 +797,8 @@ function relicChipHtml(relic) {
                   ? `Round Relic: gain +${growthStacks} Max HP and +${growthStacks} ATK at the start of each round`
                   : id === "round_heal_scaling"
                     ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
+                    : id === "golgotha_heartsear"
+                      ? `Golgotha Relic: every 3 turns, deal ${Math.min(5, Math.floor((roundCounter - 1) / 20) + 1) * 10}% max HP damage to the highest-HP hero`
             : id === "justice_equal_atk"
               ? "Justice Relic: allies with the same ATK as Justice deal 1.5x damage"
               : id === "enemy_scale"
