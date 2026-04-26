@@ -139,12 +139,12 @@ h2 {
 }
 
 .party-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .party-layout {
   display: grid;
-  grid-template-columns: 1fr minmax(260px, min(36vw, 380px));
+  grid-template-columns: 1fr;
   gap: 1rem;
   align-items: start;
   min-height: 0;
@@ -178,13 +178,14 @@ body:has(#screen-party.active) .party-grid {
   padding-right: 0.2rem;
 }
 
-body:has(#screen-party.active) .party-inspect {
-  min-height: 0;
-  overflow: auto;
-}
-
 .party-layout-main .btn-primary {
   margin-top: 1rem;
+}
+
+@media (max-width: 820px) {
+  .party-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 
@@ -1234,6 +1235,36 @@ body:has(#screen-party.active) .party-inspect {
   max-height: 100%;
 }
 
+@media (max-width: 820px) {
+  .battle-mid-scroll {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .battle-mid-scroll > .battle-arena {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 1 / 1;
+    min-height: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .battle-right-col {
+    flex: 1 1 0;
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    border-top: none;
+  }
+
+  .arena-col {
+    padding-bottom: 18%;
+  }
+}
+
 .log p {
   margin: 0.25rem 0;
   color: var(--muted);
@@ -1332,10 +1363,25 @@ body:has(#screen-party.active) .party-inspect {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  cursor: grab;
+  cursor: default;
 }
 
 .relic-draft-chip-wrap:active {
+  cursor: default;
+}
+
+.relic-draft-chip-wrap.is-armed {
+  outline: 1px solid var(--accent-2);
+  border-radius: 8px;
+  background: rgb(200 159 61 / 0.12);
+}
+
+.relic-draft-chip {
+  cursor: grab;
+  touch-action: none;
+}
+
+.relic-draft-chip:active {
   cursor: grabbing;
 }
 
@@ -1345,6 +1391,7 @@ body:has(#screen-party.active) .party-inspect {
   line-height: 1.2;
   color: var(--muted);
   text-align: center;
+  pointer-events: none;
 }
 
 .relic-target-card {

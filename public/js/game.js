@@ -1192,6 +1192,7 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   pool.splice(3);
   /** @type {{ heroId: string, relic: any } | null} */
   let assigned = null;
+  let armedPoolIdx = -1;
 
   const root = document.createElement("div");
   root.className = "relic-draft-layout";
@@ -1239,6 +1240,7 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
     if (!assigned || assigned.heroId !== fromHeroId) return;
     pool.push(assigned.relic);
     assigned = null;
+    armedPoolIdx = -1;
     render();
   });
 
@@ -1250,15 +1252,22 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
     pool.forEach((relic, idx) => {
       const chipWrap = document.createElement("span");
       chipWrap.className = "relic-draft-chip-wrap";
-      chipWrap.draggable = true;
       chipWrap.dataset.poolIdx = String(idx);
       chipWrap.innerHTML = `
         ${relicChipHtml({ ...relic, counter: 1 })}
         <span class="relic-draft-desc">${escapeHtml(relic.desc)}</span>
       `;
-      chipWrap.addEventListener("dragstart", (ev) => {
+      if (armedPoolIdx === idx) chipWrap.classList.add("is-armed");
+      const chip = chipWrap.querySelector(".relic-chip");
+      chip?.classList.add("relic-draft-chip");
+      chip?.setAttribute("draggable", "true");
+      chip?.addEventListener("dragstart", (ev) => {
         ev.dataTransfer?.setData("text/relic-pool-idx", String(idx));
         ev.dataTransfer.effectAllowed = "move";
+      });
+      chip?.addEventListener("click", () => {
+        armedPoolIdx = idx;
+        render();
       });
       poolWrap.appendChild(chipWrap);
     });
@@ -1283,9 +1292,27 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
       `;
       const zone = slot.querySelector(".relic-drop-zone");
       const assignedChip = slot.querySelector(".relic-draft-chip-wrap.is-assigned");
-      assignedChip?.addEventListener("dragstart", (ev) => {
+      const assignedIcon = assignedChip?.querySelector(".relic-chip");
+      assignedIcon?.classList.add("relic-draft-chip");
+      assignedIcon?.setAttribute("draggable", "true");
+      assignedIcon?.addEventListener("dragstart", (ev) => {
         ev.dataTransfer?.setData("text/relic-assigned-hero-id", h.def.id);
         ev.dataTransfer.effectAllowed = "move";
+      });
+      assignedIcon?.addEventListener("click", () => {
+        if (!assigned || assigned.heroId !== h.def.id) return;
+        pool.push(assigned.relic);
+        assigned = null;
+        armedPoolIdx = -1;
+        render();
+      });
+      zone.addEventListener("click", () => {
+        if (!Number.isInteger(armedPoolIdx) || armedPoolIdx < 0 || armedPoolIdx >= pool.length) return;
+        const picked = pool.splice(armedPoolIdx, 1)[0];
+        if (assigned) pool.push(assigned.relic);
+        assigned = { heroId: h.def.id, relic: picked };
+        armedPoolIdx = -1;
+        render();
       });
       zone.addEventListener("dragover", (ev) => {
         ev.preventDefault();
@@ -1308,6 +1335,7 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
         const picked = pool.splice(idx, 1)[0];
         if (assigned) pool.push(assigned.relic);
         assigned = { heroId: h.def.id, relic: picked };
+        armedPoolIdx = -1;
         render();
       });
       right.appendChild(slot);
