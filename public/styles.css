@@ -1275,6 +1275,10 @@ body:has(#screen-party.active) .party-inspect {
   width: 100%;
 }
 
+.modal.modal-relic-draft {
+  max-width: min(1040px, 96vw);
+}
+
 .modal h2 {
   color: var(--text);
   margin-bottom: 0.75rem;
@@ -1284,6 +1288,139 @@ body:has(#screen-party.active) .party-inspect {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.relic-draft-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 0.7rem;
+}
+
+.relic-draft-pool,
+.relic-draft-targets {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 340px;
+  max-height: min(62vh, 640px);
+  overflow-y: auto;
+}
+
+.relic-draft-pool h3,
+.relic-draft-targets h3 {
+  margin: 0;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.relic-pool-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-start;
+  min-height: 30px;
+}
+
+.relic-draft-chip-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  cursor: grab;
+}
+
+.relic-draft-chip-wrap:active {
+  cursor: grabbing;
+}
+
+.relic-draft-desc {
+  max-width: 90px;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  color: var(--muted);
+  text-align: center;
+}
+
+.relic-target-card {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 0.45rem 0.5rem;
+}
+
+.relic-target-card h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.78rem;
+  color: var(--accent-2);
+}
+
+.relic-target-card .fighter-relics {
+  margin-top: 0;
+  margin-bottom: 0.35rem;
+}
+
+.relic-drop-zone {
+  border: 1px dashed rgb(200 159 61 / 0.45);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.relic-drop-zone strong {
+  color: var(--text);
+  font-size: 0.76rem;
+}
+
+.relic-drop-zone p {
+  margin: 0.2rem 0 0;
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.relic-drop-zone.is-over {
+  border-color: var(--accent-2);
+  background: rgb(200 159 61 / 0.1);
+}
+
+.relic-drop-plus {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-2);
+}
+
+.relic-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.relic-draft-actions .btn {
+  height: 42px;
+  min-height: 42px;
+  padding-top: 0;
+  padding-bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.relic-draft-actions .btn-primary {
+  margin-top: 0;
 }
 
 .upgrade-btn {

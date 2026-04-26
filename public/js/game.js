@@ -2,7 +2,6 @@ import {
   COMBAT,
   roundScale,
   normalizeSkillDef,
-  rollUpgradeStatValue,
 } from "./mechanics.js";
 
 /** Pause after each skill resolves (UI + pacing), including auto-repeat. */
@@ -15,6 +14,28 @@ let enemyDefs = [];
 /** @type {string} */
 let arenaBackgroundUrl = "";
 const BASIC_ATTACK_SKILL = Object.freeze({ id: "basic_attack", name: "Attack", type: "damage" });
+const ROUND_RELIC_DRAFT_POOL = Object.freeze([
+  {
+    id: "growth_hp_round",
+    name: "Vital Bloom",
+    desc: "+1 Max HP each round",
+  },
+  {
+    id: "growth_atk_round",
+    name: "War Ember",
+    desc: "+1 ATK each round",
+  },
+  {
+    id: "growth_hybrid_round",
+    name: "Twin Sigil",
+    desc: "+1 Max HP and +1 ATK each round",
+  },
+  {
+    id: "round_heal_scaling",
+    name: "Mending Clock",
+    desc: "Heal N HP each round (N = round number)",
+  },
+]);
 
 let state = {
   round: 1,
@@ -136,9 +157,6 @@ async function filterDefsWithSprites(defs) {
  * @typedef {object} Buff
  * @property {string} stat
  * @property {number} stacks
- * @property {number} [duration] legacy fallback
- * @property {number} [amount] legacy fallback
- * @property {number} [percentFrac] legacy fallback
  */
 
 /**
@@ -528,10 +546,10 @@ function performSkill(actor, skill) {
     const seraphRelic = (actor.relics || []).find((r) => r.id === "seraph_heal");
     if (seraphRelic) {
       const pct = Math.max(0, Number(seraphRelic.valuePercent || 10)) / 100;
+      const healFromSeraph = Math.max(1, Math.floor(actor.maxHp * pct));
       for (const ally of aliveHeroes()) {
-        const heal = Math.max(1, Math.floor(ally.maxHp * pct));
-        applyHeal(ally, heal);
-        queueCombatFloat(ally.def.id, `+${heal}`, "heal");
+        applyHeal(ally, healFromSeraph);
+        queueCombatFloat(ally.def.id, `+${healFromSeraph}`, "heal");
       }
     }
     return;
@@ -627,6 +645,10 @@ function resolveBattleOutcome() {
     playAttackHitSfx();
     logLine(`<span class="system">Victory — round ${state.round} cleared!</span>`);
     rallyDeadHeroesAfterVictory();
+    if (state.round >= COMBAT.TOTAL_ROUNDS) {
+      setTimeout(() => advanceToNextRound(), 500);
+      return;
+    }
     setTimeout(() => openUpgradeModal(), 500);
   }
 }
@@ -640,6 +662,29 @@ function rallyDeadHeroesAfterVictory() {
     logLine(
       `<span class="system">${escapeHtml(h.def.name)} is rallied — <strong>${restored}</strong> HP (10% of max).</span>`
     );
+  }
+}
+
+function applyRoundStartRelicGrowth() {
+  for (const h of state.party) {
+    for (const relic of h.relics || []) {
+      if (relic.id === "growth_hp_round") {
+        const gain = Math.max(1, Number(relic.stacks || 0));
+        h.maxHp += gain;
+        h.hp += gain;
+      } else if (relic.id === "growth_atk_round") {
+        h.attack += Math.max(1, Number(relic.stacks || 0));
+      } else if (relic.id === "growth_hybrid_round") {
+        const gain = Math.max(1, Number(relic.stacks || 0));
+        h.maxHp += gain;
+        h.hp += gain;
+        h.attack += gain;
+      } else if (relic.id === "round_heal_scaling") {
+        const stacks = Math.max(1, Number(relic.stacks || 0));
+        const heal = Math.max(1, Number(state.round || 1)) * stacks;
+        h.hp = Math.min(h.maxHp, Math.max(0, Number(h.hp || 0)) + heal);
+      }
+    }
   }
 }
 
@@ -680,14 +725,29 @@ function buffChipLabel(b) {
 function relicChipHtml(relic) {
   const id = String(relic?.id || "");
   const stackN = Math.max(0, Number(relic?.stacks || 0));
+  const growthStacks = Math.max(1, Number(relic?.stacks || 0));
   const interval = Math.max(0, Number(relic?.intervalTurns || 0));
   const curCounter = Math.max(0, Number(relic?.counter || interval || 0));
   const pct = Math.max(0, Number(relic?.valuePercent || 0));
   const scaleValue = Number(relic?.valueScale || 0);
   const showsRound = !!relic?.valueRound;
+  const isRoundGrowthRelic =
+    id === "growth_hp_round" || id === "growth_atk_round" || id === "growth_hybrid_round";
   const roundCounter = Math.max(1, Number(state.round || 1));
   const scaleCounterText = scaleValue > 0 ? scaleValue.toFixed(2) : "";
-  const counterValue = showsRound ? roundCounter : scaleValue > 0 ? scaleCounterText : pct > 0 ? pct : interval > 0 ? curCounter : 0;
+  const counterValue = showsRound
+    ? roundCounter
+    : scaleValue > 0
+      ? scaleCounterText
+      : pct > 0
+        ? pct
+        : interval > 0
+          ? curCounter
+          : id === "round_heal_scaling"
+            ? roundCounter
+          : isRoundGrowthRelic
+            ? growthStacks
+            : 0;
   const counter = counterValue ? `<span class="relic-counter">${counterValue}</span>` : "";
   const title =
     id === "rapture"
@@ -698,6 +758,14 @@ function relicChipHtml(relic) {
           ? "Chariot Relic: every 3rd attack deals double damage"
           : id === "judgement_round_bonus"
             ? "Judgement Relic: each attack deals bonus damage equal to current round"
+            : id === "growth_hp_round"
+              ? `Round Relic: gain +${growthStacks} Max HP at the start of each round`
+              : id === "growth_atk_round"
+                ? `Round Relic: gain +${growthStacks} ATK at the start of each round`
+                : id === "growth_hybrid_round"
+                  ? `Round Relic: gain +${growthStacks} Max HP and +${growthStacks} ATK at the start of each round`
+                  : id === "round_heal_scaling"
+                    ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
             : id === "justice_equal_atk"
               ? "Justice Relic: allies with the same ATK as Justice deal 1.5x damage"
               : id === "enemy_scale"
@@ -726,11 +794,6 @@ function fighterEffectsHtml(f) {
   if (relics) parts.push(`<div class="fighter-relics" aria-label="Active relics">${relics}</div>`);
   if (chips.length) parts.push(`<div class="fighter-effects" aria-label="Active buffs and statuses">${chips.join("")}</div>`);
   return parts.join("");
-}
-
-function skillReferenceBlockHtml(skill, perspective) {
-  const mech = `<p class="skill-mech">${escapeHtml(describeSkillMechanics(skill, perspective))}</p>`;
-  return `<div class="status-skill"><strong>${escapeHtml(skill.name)}</strong>${mech}</div>`;
 }
 
 function charDefReferenceBlockHtml(c) {
@@ -1051,115 +1114,192 @@ async function onRepeatAllParty() {
   renderBattle();
 }
 
-const UPGRADE_STATS = /** @type {const} */ (["maxHp", "attack"]);
-
-function randomStatUpgradeOption() {
-  const heroes = state.party.filter((h) => h.hp > 0);
-  if (!heroes.length) return null;
-  const h = heroes[Math.floor(Math.random() * heroes.length)];
-  const stat = UPGRADE_STATS[Math.floor(Math.random() * UPGRADE_STATS.length)];
-  const value = rollUpgradeStatValue();
-  const statLabel = stat === "maxHp" ? "Max HP" : "Attack";
-  const healNote = stat === "maxHp" ? ` Current HP increases by the same amount.` : "";
+function makeDraftRelicInstance(base) {
   return {
-    type: "stat",
-    stat,
-    title: `+${value} ${statLabel}`,
-    desc: `Apply to ${h.def.name}.${healNote}`,
-    heroId: h.def.id,
-    value,
+    id: base.id,
+    stacks: 1,
   };
 }
 
-function randomUpgradeOptions() {
-  const picks = [];
-  const usedHeroStat = new Set();
-  // Avoid duplicate rewards for the same hero + stat in one selection set.
-  for (let n = 0; n < 3; n++) {
-    const opt = randomStatUpgradeOption();
-    if (!opt) continue;
-    const key = `${opt.heroId}:${opt.stat}`;
-    if (usedHeroStat.has(key)) {
-      let retry = 0;
-      let alt = null;
-      while (retry < 12) {
-        const next = randomStatUpgradeOption();
-        if (!next) break;
-        const nextKey = `${next.heroId}:${next.stat}`;
-        if (!usedHeroStat.has(nextKey)) {
-          alt = next;
-          break;
-        }
-        retry += 1;
-      }
-      if (!alt) continue;
-      picks.push(alt);
-      usedHeroStat.add(`${alt.heroId}:${alt.stat}`);
-      continue;
+function addOrStackDraftRelic(hero, baseRelic) {
+  const relicId = String(baseRelic?.id || "");
+  hero.relics = hero.relics || [];
+  if (
+    relicId === "growth_hp_round" ||
+    relicId === "growth_atk_round" ||
+    relicId === "growth_hybrid_round" ||
+    relicId === "round_heal_scaling"
+  ) {
+    const existing = hero.relics.find((r) => r.id === relicId);
+    if (existing) {
+      existing.stacks = Math.max(1, Number(existing.stacks || 0)) + 1;
+      return;
     }
-    picks.push(opt);
-    usedHeroStat.add(key);
   }
-  return picks;
+  hero.relics.push(makeDraftRelicInstance(baseRelic));
 }
 
-function applyUpgrade(opt) {
-  const hero = state.party.find((p) => p.def.id === opt.heroId);
-  if (!hero) return;
-  if (opt.type === "stat") {
-    if (opt.stat === "maxHp") {
-      hero.maxHp += opt.value;
-      hero.hp = Math.min(hero.maxHp, hero.hp + opt.value);
-    } else if (opt.stat === "attack") hero.attack += opt.value;
+function openRelicDraftModal({ title, subtitle, onDone }) {
+  disarmAutoRepeatParty();
+  const modal = document.getElementById("modal-upgrades");
+  const modalCard = modal.querySelector(".modal");
+  const titleEl = document.querySelector("#modal-upgrades h2");
+  const subtitleEl = document.querySelector("#modal-upgrades .tagline");
+  const list = document.getElementById("upgrade-list");
+  modalCard?.classList.add("modal-relic-draft");
+  titleEl.textContent = title;
+  subtitleEl.textContent = subtitle;
+  list.innerHTML = "";
+
+  const pool = ROUND_RELIC_DRAFT_POOL.map((r) => ({ ...r }));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
+  pool.splice(3);
+  /** @type {{ heroId: string, relic: any } | null} */
+  let assigned = null;
+
+  const root = document.createElement("div");
+  root.className = "relic-draft-layout";
+  const left = document.createElement("section");
+  left.className = "relic-draft-pool";
+  const right = document.createElement("section");
+  right.className = "relic-draft-targets";
+  root.append(left, right);
+  list.appendChild(root);
+
+  const footer = document.createElement("div");
+  footer.className = "relic-draft-actions";
+  const skipBtn = document.createElement("button");
+  skipBtn.type = "button";
+  skipBtn.className = "btn";
+  skipBtn.textContent = "Skip";
+  const doneBtn = document.createElement("button");
+  doneBtn.type = "button";
+  doneBtn.className = "btn btn-primary";
+  doneBtn.textContent = "Confirm relics";
+  footer.append(skipBtn, doneBtn);
+  list.appendChild(footer);
+
+  const closeAndContinue = (applyAssignments) => {
+    if (applyAssignments) {
+      for (const h of state.party) {
+        const base = assigned && assigned.heroId === h.def.id ? assigned.relic : null;
+        if (!base) continue;
+        addOrStackDraftRelic(h, base);
+      }
+    }
+    modalCard?.classList.remove("modal-relic-draft");
+    modal.classList.remove("active");
+    onDone();
+  };
+
+  skipBtn.addEventListener("click", () => closeAndContinue(false));
+  doneBtn.addEventListener("click", () => closeAndContinue(true));
+
+  left.addEventListener("dragover", (ev) => ev.preventDefault());
+  left.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    const fromHeroId = ev.dataTransfer?.getData("text/relic-assigned-hero-id");
+    if (!fromHeroId) return;
+    if (!assigned || assigned.heroId !== fromHeroId) return;
+    pool.push(assigned.relic);
+    assigned = null;
+    render();
+  });
+
+  const render = () => {
+    left.innerHTML = `<h3>New relics</h3>`;
+    right.innerHTML = `<h3>Assign to party</h3>`;
+    const poolWrap = document.createElement("div");
+    poolWrap.className = "fighter-relics relic-pool-strip";
+    pool.forEach((relic, idx) => {
+      const chipWrap = document.createElement("span");
+      chipWrap.className = "relic-draft-chip-wrap";
+      chipWrap.draggable = true;
+      chipWrap.dataset.poolIdx = String(idx);
+      chipWrap.innerHTML = `
+        ${relicChipHtml({ ...relic, counter: 1 })}
+        <span class="relic-draft-desc">${escapeHtml(relic.desc)}</span>
+      `;
+      chipWrap.addEventListener("dragstart", (ev) => {
+        ev.dataTransfer?.setData("text/relic-pool-idx", String(idx));
+        ev.dataTransfer.effectAllowed = "move";
+      });
+      poolWrap.appendChild(chipWrap);
+    });
+    left.appendChild(poolWrap);
+    if (!pool.length) {
+      const done = document.createElement("p");
+      done.className = "status-panel-hint";
+      done.textContent = "All new relics assigned. Drag a chip back here to unassign.";
+      left.appendChild(done);
+    }
+
+    for (const h of state.party) {
+      const slot = document.createElement("article");
+      slot.className = "relic-target-card";
+      slot.dataset.heroId = h.def.id;
+      const existing = (h.relics || []).map((r) => relicChipHtml(r)).join("");
+      const assignedRelic = assigned && assigned.heroId === h.def.id ? assigned.relic : null;
+      slot.innerHTML = `
+        <h4>${escapeHtml(h.def.name)}</h4>
+        <div class="fighter-relics">${existing || '<span class="status-panel-hint">No assigned relics</span>'}</div>
+        <div class="relic-drop-zone">${assignedRelic ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-hero-id="${escapeHtml(h.def.id)}">${relicChipHtml({ ...assignedRelic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}</div>
+      `;
+      const zone = slot.querySelector(".relic-drop-zone");
+      const assignedChip = slot.querySelector(".relic-draft-chip-wrap.is-assigned");
+      assignedChip?.addEventListener("dragstart", (ev) => {
+        ev.dataTransfer?.setData("text/relic-assigned-hero-id", h.def.id);
+        ev.dataTransfer.effectAllowed = "move";
+      });
+      zone.addEventListener("dragover", (ev) => {
+        ev.preventDefault();
+        zone.classList.add("is-over");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("is-over"));
+      zone.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        zone.classList.remove("is-over");
+        const fromHeroId = ev.dataTransfer?.getData("text/relic-assigned-hero-id");
+        if (fromHeroId) {
+          if (!assigned || assigned.heroId !== fromHeroId) return;
+          assigned = { heroId: h.def.id, relic: assigned.relic };
+          render();
+          return;
+        }
+        const idxRaw = ev.dataTransfer?.getData("text/relic-pool-idx");
+        const idx = Number(idxRaw);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= pool.length) return;
+        const picked = pool.splice(idx, 1)[0];
+        if (assigned) pool.push(assigned.relic);
+        assigned = { heroId: h.def.id, relic: picked };
+        render();
+      });
+      right.appendChild(slot);
+    }
+  };
+
+  render();
+  modal.classList.add("active");
 }
 
 function openUpgradeModal() {
-  disarmAutoRepeatParty();
-  const modal = document.getElementById("modal-upgrades");
-  document.querySelector("#modal-upgrades h2").textContent = "Round clear — pick a stat reward";
-  document.querySelector("#modal-upgrades .tagline").textContent =
-    "Choose one of three +1 / +2 / +5 stat bumps.";
-  const list = document.getElementById("upgrade-list");
-  list.innerHTML = "";
-  const opts = randomUpgradeOptions();
-  for (const o of opts) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "btn upgrade-btn";
-    b.innerHTML = `<span class="title">${o.title}</span><span class="desc">${o.desc}</span>`;
-    b.addEventListener("click", () => {
-      applyUpgrade(o);
-      modal.classList.remove("active");
-      advanceToNextRound();
-    });
-    list.appendChild(b);
-  }
-  modal.classList.add("active");
+  openRelicDraftModal({
+    title: "Round clear — assign new relics",
+    subtitle: "Pick 1 of 3 relics and assign it to one ally, or skip.",
+    onDone: () => advanceToNextRound(),
+  });
   renderBattle();
 }
 
 function openPreRoundUpgradeModal() {
-  const modal = document.getElementById("modal-upgrades");
-  const list = document.getElementById("upgrade-list");
-  document.querySelector("#modal-upgrades h2").textContent = "Pre-battle boost";
-  document.querySelector("#modal-upgrades .tagline").textContent =
-    "Pick one stat reward before round 1 starts.";
-  list.innerHTML = "";
-  const opts = randomUpgradeOptions();
-  for (const o of opts) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "btn upgrade-btn";
-    b.innerHTML = `<span class="title">${o.title}</span><span class="desc">${o.desc}</span>`;
-    b.addEventListener("click", () => {
-      applyUpgrade(o);
-      modal.classList.remove("active");
-      startBattleEncounter();
-    });
-    list.appendChild(b);
-  }
-  modal.classList.add("active");
+  openRelicDraftModal({
+    title: "Pre-battle relic draft",
+    subtitle: "Pick 1 of 3 relics before Round 1 starts, or skip.",
+    onDone: () => startBattleEncounter(),
+  });
 }
 
 function advanceToNextRound() {
@@ -1181,6 +1321,7 @@ function startBattleEncounter() {
   state.actedSkillActorKeys.clear();
   showScreen("screen-battle");
   document.getElementById("round-label").textContent = `Round ${state.round} / ${COMBAT.TOTAL_ROUNDS}`;
+  applyRoundStartRelicGrowth();
   for (const h of state.party) h.relics = h.relics || [];
   const def = enemyDefs[Math.floor(Math.random() * enemyDefs.length)];
   state.enemy = enemyFromDef(def, state.round);

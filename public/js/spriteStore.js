@@ -4,8 +4,6 @@
 const DB_NAME = "VibeJamSpriteDev";
 const DB_VERSION = 3;
 const STORE_SPRITES = "sprites";
-/** @deprecated removed in v3; kept only for upgrade cleanup */
-const STORE_SETTINGS = "settings";
 
 /** @type {Map<string, string>} */
 const objectUrlCache = new Map();
@@ -19,9 +17,6 @@ function openDb() {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE_SPRITES)) {
         db.createObjectStore(STORE_SPRITES, { keyPath: "id" });
-      }
-      if (ev.oldVersion < 3 && db.objectStoreNames.contains(STORE_SETTINGS)) {
-        db.deleteObjectStore(STORE_SETTINGS);
       }
     };
   });

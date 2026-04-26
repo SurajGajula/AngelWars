@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PUBLIC_DIR = path.join(__dirname, "public");
+const DEVTOOLS_DIR = path.join(__dirname, "devtools");
 
 const PORT = Number(process.env.PORT || 8081);
 
@@ -162,11 +163,12 @@ app.delete("/api/sprites/:id", async (req, res) => {
 
 // --- Static ---
 app.use(express.static(PUBLIC_DIR));
+app.use("/devtools", express.static(DEVTOOLS_DIR));
 app.get("/", (_req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 app.get("/devtools", (_req, res) => {
-  res.sendFile(path.join(__dirname, "devtools", "index.html"));
+  res.sendFile(path.join(DEVTOOLS_DIR, "index.html"));
 });
 
 if (!process.env.VERCEL) {
