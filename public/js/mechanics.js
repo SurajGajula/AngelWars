@@ -6,10 +6,8 @@
 
 export const COMBAT = {
   TOTAL_ROUNDS: 100,
-  /** Enemy stat multiplier at round {@link COMBAT.TOTAL_ROUNDS} (boss factor on that round is included in this target). */
-  ENEMY_SCALE_AT_MAX_ROUND: 25,
-  BOSS_EVERY_N_ROUNDS: 10,
-  BOSS_MULTIPLIER: 1.5,
+  /** Enemy stat multiplier at round {@link COMBAT.TOTAL_ROUNDS}. */
+  ENEMY_SCALE_AT_MAX_ROUND: 100,
   /** Multiplier on all attack damage (both sides) — higher = shorter fights. */
   DAMAGE_OUTPUT_MULT: 1,
   /** Heals: ceil(caster maxHp × this) to each affected unit (same amount for party-wide hero heal). */
@@ -49,17 +47,11 @@ export function normalizeSupportBuffStackCount(raw) {
 export function roundScale(round) {
   const r = Math.max(1, round);
   const t = Math.max(1, COMBAT.TOTAL_ROUNDS);
-  const target = COMBAT.ENEMY_SCALE_AT_MAX_ROUND;
-  const bossAtMax =
-    t % COMBAT.BOSS_EVERY_N_ROUNDS === 0 ? COMBAT.BOSS_MULTIPLIER : 1;
-  const targetNoBoss = target / bossAtMax;
+  const maxScale = Math.max(1, Number(COMBAT.ENEMY_SCALE_AT_MAX_ROUND || 1));
   const progress = (r - 1) / Math.max(1, t - 1);
-  const curvePower = 1.45;
-  // Ease-in: slower early/mid growth, much steeper toward late rounds.
-  const curvedProgress = Math.pow(progress, curvePower);
-  const scaleNoBoss = 1 + (targetNoBoss - 1) * curvedProgress;
-  const boss = r % COMBAT.BOSS_EVERY_N_ROUNDS === 0 ? COMBAT.BOSS_MULTIPLIER : 1;
-  return scaleNoBoss * boss;
+  const curvePower = 2;
+  // Single scaling formula: starts at 1 on round 1 and reaches maxScale on final round.
+  return 1 + (maxScale - 1) * Math.pow(progress, curvePower);
 }
 
 export function normalizeSkillDef(skill) {
@@ -75,6 +67,6 @@ export function normalizeSkillDef(skill) {
 export function buildMechanicsDocumentationHtml() {
   return `<div class="mechanics-doc-inner">
     <h3>Gameplay-first mechanics</h3>
-    <p>Combat currently runs on basic attacks and relic effects. Enemy scaling follows a curved ramp plus boss-round multipliers.</p>
+    <p>Combat currently runs on basic attacks and relic effects. Enemy scaling follows one curve formula from 1 at round 1 to the configured max at the final round.</p>
   </div>`;
 }

@@ -111,6 +111,7 @@ function setBgmMuted(muted) {
   if (!btn) return;
   btn.textContent = muted ? "Unmute" : "Mute";
   btn.setAttribute("aria-pressed", muted ? "true" : "false");
+  btn.setAttribute("aria-label", muted ? "Unmute background music" : "Mute background music");
 }
 
 function normalizeCharacterDefs(list) {
