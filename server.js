@@ -170,6 +170,9 @@ app.get("/", (_req, res) => {
 app.get("/devtools", (_req, res) => {
   res.sendFile(path.join(DEVTOOLS_DIR, "index.html"));
 });
+app.get("/Thumbnail.png", (_req, res) => {
+  res.sendFile(path.join(__dirname, "Thumbnail.png"));
+});
 
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
