@@ -7,7 +7,7 @@
 export const COMBAT = {
   TOTAL_ROUNDS: 100,
   /** Enemy stat multiplier at round {@link COMBAT.TOTAL_ROUNDS} (boss factor on that round is included in this target). */
-  ENEMY_SCALE_AT_MAX_ROUND: 10,
+  ENEMY_SCALE_AT_MAX_ROUND: 25,
   BOSS_EVERY_N_ROUNDS: 10,
   BOSS_MULTIPLIER: 1.5,
   /** Multiplier on all attack damage (both sides) — higher = shorter fights. */
@@ -54,7 +54,8 @@ export function roundScale(round) {
     t % COMBAT.BOSS_EVERY_N_ROUNDS === 0 ? COMBAT.BOSS_MULTIPLIER : 1;
   const targetNoBoss = target / bossAtMax;
   const progress = (r - 1) / Math.max(1, t - 1);
-  const curvePower = 2.2;
+  const curvePower = 1.45;
+  // Ease-in: slower early/mid growth, much steeper toward late rounds.
   const curvedProgress = Math.pow(progress, curvePower);
   const scaleNoBoss = 1 + (targetNoBoss - 1) * curvedProgress;
   const boss = r % COMBAT.BOSS_EVERY_N_ROUNDS === 0 ? COMBAT.BOSS_MULTIPLIER : 1;
