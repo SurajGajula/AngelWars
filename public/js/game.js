@@ -14,7 +14,7 @@ let enemyDefs = [];
 /** @type {string} */
 let arenaBackgroundUrl = "";
 const BASIC_ATTACK_SKILL = Object.freeze({ id: "basic_attack", name: "Attack", type: "damage" });
-const ROUND_RELIC_DRAFT_POOL = Object.freeze([
+const RELIC_LIBRARY = Object.freeze([
   {
     id: "growth_hp_round",
     name: "Vital Bloom",
@@ -36,6 +36,8 @@ const ROUND_RELIC_DRAFT_POOL = Object.freeze([
     desc: "Heal N HP each round (N = round number)",
   },
 ]);
+const RELIC_BY_ID = Object.freeze(Object.fromEntries(RELIC_LIBRARY.map((r) => [r.id, r])));
+let draftPoolRelicIds = RELIC_LIBRARY.map((r) => r.id);
 
 let state = {
   round: 1,
@@ -57,6 +59,8 @@ let state = {
   autoRepeatLivingAtArm: 0,
   /** Battle-local full-turn counter (increments after all actors use a skill). */
   turnsElapsedInEncounter: 0,
+  /** True only when a full actor cycle completed and relic timers should advance once. */
+  pendingRelicTurnAdvance: false,
   /** Distinct actor keys that have used a skill in the current full turn. */
   actedSkillActorKeys: /** @type {Set<string>} */ (new Set()),
   /** Hero def ids that have finished a turn in the current party volley (cleared after the foe acts). */
@@ -174,6 +178,9 @@ async function filterDefsWithSprites(defs) {
 
 function defaultRelicsForDef(def, kind, opts = {}) {
   const id = String(def?.id || "").toLowerCase();
+  if (Array.isArray(def?.innateRelics) && def.innateRelics.length) {
+    return def.innateRelics.map((r) => ({ ...r }));
+  }
   if (kind === "enemy") {
     const scale = Number(opts.enemyScale || 1);
     const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
@@ -184,10 +191,16 @@ function defaultRelicsForDef(def, kind, opts = {}) {
     if (id === "golgotha") {
       relics.push({ id: "golgotha_heartsear", stacks: 1, intervalTurns: 3, counter: 3 });
     }
+    if (id === "absolution") {
+      relics.push({ id: "absolution_everpain", stacks: 1, intervalTurns: 1, counter: 1 });
+    }
     return relics;
   }
   if (id === "chariot") {
     return [{ id: "chariot_third_strike", stacks: 0, intervalTurns: 3, counter: 3 }];
+  }
+  if (id === "cherub") {
+    return [{ id: "cherub_martyr_split", stacks: 0 }];
   }
   if (id === "seraph") {
     return [{ id: "seraph_heal", stacks: 0, valuePercent: 10 }];
@@ -259,7 +272,11 @@ function registerSkillAction(actor) {
   }
   state.actedSkillActorKeys.clear();
   state.turnsElapsedInEncounter += 1;
-  processRelicsOnTurnAdvance();
+  state.pendingRelicTurnAdvance = true;
+}
+
+function relicRoundTierStacks() {
+  return Math.min(5, Math.floor((Math.max(1, Number(state.round || 1)) - 1) / 20) + 1);
 }
 
 function processRelicsOnTurnAdvance() {
@@ -282,7 +299,7 @@ function processRelicsOnTurnAdvance() {
       if (relic.id === "golgotha_heartsear" && unit.kind === "enemy") {
         const interval = Math.max(1, Number(relic.intervalTurns || 3));
         const counter = Math.max(1, Number(relic.counter || interval));
-        const roundStacks = Math.min(5, Math.floor((Math.max(1, Number(state.round || 1)) - 1) / 20) + 1);
+        const roundStacks = relicRoundTierStacks();
         relic.stacks = roundStacks;
         if (counter <= 1) {
           const target = aliveHeroes().reduce(
@@ -295,16 +312,20 @@ function processRelicsOnTurnAdvance() {
           if (target) {
             const pct = 0.1 * roundStacks;
             const dmg = Math.max(1, Math.floor(Math.max(0, Number(target.maxHp || 0)) * pct));
-            applyDamage(target, dmg);
-            queueCombatFloat(target.def.id, `-${dmg}`, "damage");
+            const dmgRes = applyDamage(target, dmg);
+            queueCombatFloat(target.def.id, `-${dmgRes.primary}`, "damage");
+            for (const rr of dmgRes.redirected) {
+              queueCombatFloat(rr.target.def.id, `-${rr.damage}`, "damage");
+            }
             logLine(
-              `<span class="enemy">${escapeHtml(unit.def.name)}</span>'s <strong>Heartsear</strong> scorches <span class="player">${escapeHtml(target.def.name)}</span> for <strong>${dmg}</strong> (${Math.round(pct * 100)}% max HP).`
+              `<span class="enemy">${escapeHtml(unit.def.name)}</span>'s <strong>Heartsear</strong> scorches <span class="player">${escapeHtml(target.def.name)}</span> for <strong>${dmgRes.total}</strong> (${Math.round(pct * 100)}% max HP).`
             );
           }
           relic.counter = interval;
         } else {
           relic.counter = counter - 1;
         }
+        continue;
       }
     }
   }
@@ -521,13 +542,40 @@ function battleOver() {
   return heroesDead || enemyDead;
 }
 
-function applyDamage(target, amount) {
+function applyDamage(target, amount, opts = {}) {
+  const allowRedirect = opts.allowRedirect !== false;
   const hpNow = Number(target.hp);
   const safeHp = Number.isFinite(hpNow) ? hpNow : 0;
   const hit = Number(amount);
-  const safeHit = Number.isFinite(hit) ? Math.max(0, hit) : 0;
+  const safeHit = Number.isFinite(hit) ? Math.max(0, Math.floor(hit)) : 0;
+
+  if (
+    allowRedirect &&
+    target?.kind === "hero" &&
+    (target.relics || []).some((r) => r.id === "cherub_martyr_split") &&
+    safeHit > 0
+  ) {
+    const allies = aliveHeroes().filter((h) => h !== target);
+    if (allies.length > 0) {
+      const selfDamage = Math.floor(safeHit / 2);
+      const redirectTotal = safeHit - selfDamage;
+      target.hp = Math.max(0, safeHp - selfDamage);
+      const redirected = [];
+      const baseShare = Math.floor(redirectTotal / allies.length);
+      let rem = redirectTotal - baseShare * allies.length;
+      for (const ally of allies) {
+        const dmg = baseShare + (rem > 0 ? 1 : 0);
+        if (rem > 0) rem -= 1;
+        if (dmg <= 0) continue;
+        const res = applyDamage(ally, dmg, { allowRedirect: false });
+        redirected.push({ target: ally, damage: res.primary });
+      }
+      return { primary: selfDamage, redirected, total: safeHit };
+    }
+  }
+
   target.hp = Math.max(0, safeHp - safeHit);
-  return 0;
+  return { primary: safeHit, redirected: [], total: safeHit };
 }
 
 function applyHeal(target, amount) {
@@ -568,12 +616,15 @@ function performSkill(actor, skill) {
       const hasPeerMatch = aliveHeroes().some((h) => h !== justice && effectiveStats(h).attack === justiceAtk);
       if (hasPeerMatch && actorAtk === justiceAtk) dealt = Math.floor(dealt * 1.5);
     }
-    applyDamage(tgt, dealt);
-    if (dealt > 0) {
-      queueCombatFloat(tgt.def.id, `-${dealt}`, "damage");
+    const dealtRes = applyDamage(tgt, dealt);
+    if (dealtRes.total > 0) {
+      queueCombatFloat(tgt.def.id, `-${dealtRes.primary}`, "damage");
+      for (const rr of dealtRes.redirected) {
+        queueCombatFloat(rr.target.def.id, `-${rr.damage}`, "damage");
+      }
     }
     logLine(
-      `<span class="${atkCls}">${name}</span> uses <strong>${sk}</strong> on <span class="enemy">${tgt.def.name}</span> for <strong>${dealt}</strong> damage.`
+      `<span class="${atkCls}">${name}</span> uses <strong>${sk}</strong> on <span class="enemy">${tgt.def.name}</span> for <strong>${dealtRes.total}</strong> damage.`
     );
     const seraphRelic = (actor.relics || []).find((r) => r.id === "seraph_heal");
     if (seraphRelic) {
@@ -587,13 +638,36 @@ function performSkill(actor, skill) {
     return;
   }
   const heroes = aliveHeroes();
+  const absolutionRelic = (actor.relics || []).find((r) => r.id === "absolution_everpain");
+  if (absolutionRelic && heroes.length) {
+    const roundStacks = relicRoundTierStacks();
+    absolutionRelic.stacks = roundStacks;
+    const turnNo = Math.max(1, Number(state.turnsElapsedInEncounter || 0) + 1);
+    const relicDamage = Math.max(1, Math.floor(turnNo * roundStacks));
+    let relicTotal = 0;
+    for (const hero of heroes) {
+      const dmgRes = applyDamage(hero, relicDamage);
+      relicTotal += dmgRes.total;
+      queueCombatFloat(hero.def.id, `-${dmgRes.primary}`, "damage");
+      for (const rr of dmgRes.redirected) {
+        queueCombatFloat(rr.target.def.id, `-${rr.damage}`, "damage");
+      }
+    }
+    const names = heroes.map((h) => h.def.name).join(", ");
+    logLine(
+      `<span class="enemy">${escapeHtml(actor.def.name)}</span>'s <strong>Everpain</strong> deals <strong>${relicTotal}</strong> total to all heroes (${escapeHtml(names)}) (${turnNo} x ${roundStacks} each).`
+    );
+  }
   let total = 0;
   for (const h of heroes) {
     const dealt = computeDamage(actor);
-    applyDamage(h, dealt);
-    total += dealt;
-    if (dealt > 0) {
-      queueCombatFloat(h.def.id, `-${dealt}`, "damage");
+    const dealtRes = applyDamage(h, dealt);
+    total += dealtRes.total;
+    if (dealtRes.total > 0) {
+      queueCombatFloat(h.def.id, `-${dealtRes.primary}`, "damage");
+      for (const rr of dealtRes.redirected) {
+        queueCombatFloat(rr.target.def.id, `-${rr.damage}`, "damage");
+      }
     }
   }
   const names = heroes.map((h) => h.def.name).join(", ");
@@ -624,8 +698,20 @@ function endActorTurn(actor) {
     disarmAutoRepeatParty();
     return resolveBattleOutcome();
   }
-  runNextTurn();
-  if (actor.kind === "enemy" && !battleOver()) scheduleAutoRepeatPartyVolleyIfNeeded();
+  const continueTurnFlow = () => {
+    runNextTurn();
+    if (actor.kind === "enemy" && !battleOver()) scheduleAutoRepeatPartyVolleyIfNeeded();
+  };
+  if (state.pendingRelicTurnAdvance) {
+    state.pendingRelicTurnAdvance = false;
+    processRelicsOnTurnAdvance();
+  }
+  renderBattle();
+  if (battleOver()) {
+    disarmAutoRepeatParty();
+    return resolveBattleOutcome();
+  }
+  continueTurnFlow();
 }
 
 function runNextTurn() {
@@ -775,6 +861,8 @@ function relicChipHtml(relic) {
         ? pct
         : interval > 0
           ? curCounter
+          : id === "absolution_everpain"
+            ? stackN
           : id === "round_heal_scaling"
             ? roundCounter
           : isRoundGrowthRelic
@@ -799,7 +887,11 @@ function relicChipHtml(relic) {
                   : id === "round_heal_scaling"
                     ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
                     : id === "golgotha_heartsear"
-                      ? `Golgotha Relic: every 3 turns, deal ${Math.min(5, Math.floor((roundCounter - 1) / 20) + 1) * 10}% max HP damage to the highest-HP hero`
+                      ? `Golgotha Relic: every 3 turns, deal ${relicRoundTierStacks() * 10}% max HP damage to the highest-HP hero`
+                      : id === "absolution_everpain"
+                      ? `Absolution Relic: each turn, deal turn# x ${relicRoundTierStacks()} to all heroes`
+                      : id === "cherub_martyr_split"
+                        ? "Cherub Relic: takes half incoming damage and splits the other half among allies"
             : id === "justice_equal_atk"
               ? "Justice Relic: allies with the same ATK as Justice deal 1.5x damage"
               : id === "enemy_scale"
@@ -1185,7 +1277,10 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   subtitleEl.textContent = subtitle;
   list.innerHTML = "";
 
-  const pool = ROUND_RELIC_DRAFT_POOL.map((r) => ({ ...r }));
+  const pool = draftPoolRelicIds
+    .map((id) => RELIC_BY_ID[id])
+    .filter(Boolean)
+    .map((r) => ({ ...r }));
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -1380,6 +1475,7 @@ function startBattleEncounter() {
   disarmAutoRepeatParty();
   state.pendingCombatFloats.length = 0;
   state.turnsElapsedInEncounter = 0;
+  state.pendingRelicTurnAdvance = false;
   state.actedSkillActorKeys.clear();
   showScreen("screen-battle");
   document.getElementById("round-label").textContent = `Round ${state.round} / ${COMBAT.TOTAL_ROUNDS}`;
@@ -1403,6 +1499,7 @@ function startBattleEncounter() {
 function beginRun(selectedIds) {
   state.round = 1;
   state.turnsElapsedInEncounter = 0;
+  state.pendingRelicTurnAdvance = false;
   state.actedSkillActorKeys.clear();
   state.heroesActedThisVolley.clear();
   state.battleView = "hud";
@@ -1506,10 +1603,11 @@ async function init() {
   setBgmMuted(false);
 
   try {
-    const [cRes, eRes, bRes] = await Promise.all([
+    const [cRes, eRes, bRes, rRes] = await Promise.all([
       fetch("data/characters.json"),
       fetch("data/enemies.json"),
       fetch("data/background.json").catch(() => null),
+      fetch("data/relics.json").catch(() => null),
     ]);
     const rawChars = normalizeCharacterDefs(await cRes.json());
     const rawEnemies = normalizeCharacterDefs(await eRes.json());
@@ -1517,6 +1615,12 @@ async function init() {
       const bgCfg = await bRes.json().catch(() => ({}));
       const rel = String(bgCfg?.arenaSpriteBackground || "").trim();
       arenaBackgroundUrl = rel ? `${rel}?ts=${Number(bgCfg?.updatedAt || Date.now())}` : "";
+    }
+    if (rRes && rRes.ok) {
+      const rc = await rRes.json().catch(() => ({}));
+      const ids = Array.isArray(rc?.draftPoolRelicIds) ? rc.draftPoolRelicIds.map((x) => String(x || "")) : [];
+      const valid = ids.filter((id) => !!RELIC_BY_ID[id]);
+      if (valid.length) draftPoolRelicIds = valid;
     }
     characterDefs = await filterDefsWithSprites(rawChars);
     enemyDefs = await filterDefsWithSprites(rawEnemies);

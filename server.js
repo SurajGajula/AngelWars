@@ -66,6 +66,53 @@ app.post("/api/enemies", async (req, res) => {
   }
 });
 
+app.post("/api/relics", async (req, res) => {
+  try {
+    const cfg = req.body || {};
+    const draftPoolRelicIds = Array.isArray(cfg.draftPoolRelicIds)
+      ? cfg.draftPoolRelicIds.map((x) => String(x || "")).filter(Boolean)
+      : [];
+    const out = { draftPoolRelicIds, updatedAt: Date.now() };
+    const outPath = path.join(PUBLIC_DIR, "data", "relics.json");
+    const text = `${JSON.stringify(out, null, 2)}\n`;
+    await fs.writeFile(outPath, text, "utf8");
+    res.json({ ok: true, relics: out });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
+app.post("/api/sprites/rename", async (req, res) => {
+  try {
+    const oldId = safeId(req.body?.oldId);
+    const newId = safeId(req.body?.newId);
+    if (!oldId || !newId) {
+      res.status(400).json({ ok: false, error: "Invalid oldId/newId." });
+      return;
+    }
+    if (oldId === newId) {
+      res.json({ ok: true, spriteUrl: `/sprites/${newId}.png` });
+      return;
+    }
+    const dir = path.join(PUBLIC_DIR, "sprites");
+    const fromPath = path.join(dir, `${oldId}.png`);
+    const toPath = path.join(dir, `${newId}.png`);
+    try {
+      await fs.rename(fromPath, toPath);
+    } catch (e) {
+      if (e && e.code === "ENOENT") {
+        // No existing sprite to rename; treat as a no-op.
+        res.json({ ok: true, spriteUrl: `/sprites/${newId}.png`, renamed: false });
+        return;
+      }
+      throw e;
+    }
+    res.json({ ok: true, spriteUrl: `/sprites/${newId}.png`, renamed: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e?.message || String(e) });
+  }
+});
+
 app.post("/api/sprites/:id", upload.single("file"), async (req, res) => {
   try {
     const id = safeId(req.params.id);

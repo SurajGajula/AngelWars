@@ -1,0 +1,9 @@
+{
+  "draftPoolRelicIds": [
+    "growth_hp_round",
+    "growth_atk_round",
+    "growth_hybrid_round",
+    "round_heal_scaling"
+  ],
+  "updatedAt": 0
+}

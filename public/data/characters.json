@@ -5,30 +5,72 @@
     "baseStats": {
       "maxHp": 100,
       "attack": 10
-    }
+    },
+    "innateRelics": [
+      {
+        "id": "seraph_heal",
+        "stacks": 0,
+        "valuePercent": 10
+      }
+    ]
   },
   {
-    "id": "chariot",
-    "name": "Chariot",
+    "id": "ophanim",
+    "name": "Ophanim",
     "baseStats": {
       "maxHp": 100,
       "attack": 10
-    }
+    },
+    "innateRelics": [
+      {
+        "id": "chariot_third_strike",
+        "stacks": 0,
+        "intervalTurns": 3,
+        "counter": 3
+      }
+    ]
   },
   {
-    "id": "judgement",
-    "name": "Judgement",
+    "id": "dominion",
+    "name": "Dominion",
     "baseStats": {
       "maxHp": 100,
       "attack": 10
-    }
+    },
+    "innateRelics": [
+      {
+        "id": "judgement_round_bonus",
+        "stacks": 0,
+        "valueRound": true
+      }
+    ]
   },
   {
-    "id": "justice",
-    "name": "Justice",
+    "id": "virtue",
+    "name": "Virtue",
     "baseStats": {
       "maxHp": 100,
       "attack": 10
-    }
+    },
+    "innateRelics": [
+      {
+        "id": "justice_equal_atk",
+        "stacks": 0
+      }
+    ]
+  },
+  {
+    "id": "cherub",
+    "name": "Cherub",
+    "baseStats": {
+      "maxHp": 100,
+      "attack": 10
+    },
+    "innateRelics": [
+      {
+        "id": "cherub_martyr_split",
+        "stacks": 0
+      }
+    ]
   }
 ]
