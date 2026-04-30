@@ -71,6 +71,10 @@
         "stacks": 0,
         "intervalTurns": 10,
         "counter": 10
+      },
+      {
+        "id": "micheal_fallen_fury",
+        "stacks": 1
       }
     ]
   }

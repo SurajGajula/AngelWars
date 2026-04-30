@@ -42,6 +42,11 @@ const RELIC_LIBRARY = Object.freeze([
     name: "Relic Guard",
     desc: "Reduce incoming damage by 1 for each unique relic you have",
   },
+  {
+    id: "double_draft_pick",
+    name: "Twin Claim",
+    desc: "If only this holder receives relics this round, they can draft 2 instead of 1",
+  },
 ]);
 const RELIC_BY_ID = Object.freeze(Object.fromEntries(RELIC_LIBRARY.map((r) => [r.id, r])));
 let draftPoolRelicIds = RELIC_LIBRARY.map((r) => r.id);
@@ -151,6 +156,7 @@ function cycleGameplaySpeed() {
 function normalizeCharacterDefs(list) {
   return (list || []).map((c) => ({
     ...c,
+    baseStats: { maxHp: 100, attack: 10 },
     skills: (c.skills || []).map((sk) => normalizeSkillDef(sk)),
   }));
 }
@@ -233,6 +239,9 @@ function defaultRelicsForDef(def, kind, opts = {}) {
     if (id === "absolution") {
       relics.push({ id: "absolution_everpain", stacks: 1, intervalTurns: 1, counter: 1 });
     }
+    if (id === "micheal") {
+      relics.push({ id: "micheal_fallen_fury", stacks: 1 });
+    }
     return relics;
   }
   if (id === "chariot") {
@@ -268,10 +277,15 @@ function buffBonusForStat(f, stat) {
 function effectiveStats(f) {
   const rapture = (f.relics || []).find((r) => r.id === "rapture");
   const enemyScaleRelic = (f.relics || []).find((r) => r.id === "enemy_scale");
+  const michealFallenFury = (f.relics || []).find((r) => r.id === "micheal_fallen_fury");
   const raptureStacks = Math.max(0, Number(rapture?.stacks || 0));
   const raptureMult = 1 + Math.min(10, raptureStacks) * 0.1;
   const enemyScale = Math.max(0.1, Number(enemyScaleRelic?.valueScale || 1));
-  const attack = f.attack + buffBonusForStat(f, "attack");
+  const deadAllies = Math.max(0, 3 - aliveHeroes().length);
+  const furyTier = michealFallenFury ? relicRoundTierStacks() : 0;
+  if (michealFallenFury) michealFallenFury.stacks = furyTier;
+  const furyMult = 1 + deadAllies * 0.1 * furyTier;
+  const attack = (f.attack + buffBonusForStat(f, "attack")) * furyMult;
   const relicMult = raptureMult * enemyScale;
   return {
     attack: Math.max(0, Math.floor(attack * relicMult)),
@@ -587,11 +601,13 @@ function applyDamage(target, amount, opts = {}) {
   const safeHp = Number.isFinite(hpNow) ? hpNow : 0;
   const hit = Number(amount);
   const rawHit = Number.isFinite(hit) ? Math.max(0, Math.floor(hit)) : 0;
-  const hasUniqueGuard = (target?.relics || []).some((r) => r.id === "unique_relic_guard");
-  const uniqueRelicCount = hasUniqueGuard
+  const uniqueGuardRelic = (target?.relics || []).find((r) => r.id === "unique_relic_guard");
+  const uniqueGuardStacks = Math.max(0, Number(uniqueGuardRelic?.stacks || 0));
+  const uniqueRelicCount = uniqueGuardStacks > 0
     ? new Set((target?.relics || []).map((r) => String(r?.id || "")).filter(Boolean)).size
     : 0;
-  const safeHit = Math.max(0, rawHit - uniqueRelicCount);
+  const uniqueGuardBlock = uniqueRelicCount * uniqueGuardStacks;
+  const safeHit = Math.max(0, rawHit - uniqueGuardBlock);
 
   if (
     allowRedirect &&
@@ -798,7 +814,7 @@ function resolveBattleOutcome() {
     logLine(`<span class="system">Defeat — your party fell on round ${state.round}.</span>`);
     setTimeout(() => {
       document.getElementById("end-title").textContent = "Defeat";
-      document.getElementById("end-body").textContent = `You reached round ${state.round} of ${COMBAT.TOTAL_ROUNDS}.`;
+      document.getElementById("end-body").innerHTML = defeatSummaryHtml();
       showScreen("screen-end");
     }, scaledDelay(800));
     return;
@@ -898,6 +914,8 @@ function relicChipHtml(relic) {
       .map((r) => String(r?.id || ""))
       .filter(Boolean)
   ).size;
+  const uniqueGuardStacks = Math.max(1, Number(relic?.stacks || 0));
+  const uniqueGuardBlock = uniqueRelicCount * uniqueGuardStacks;
   const isRoundGrowthRelic =
     id === "growth_hp_round" || id === "growth_atk_round" || id === "growth_hybrid_round";
   const roundCounter = Math.max(1, Number(state.round || 1));
@@ -915,7 +933,9 @@ function relicChipHtml(relic) {
           : id === "round_heal_scaling"
             ? roundCounter
             : id === "unique_relic_guard"
-              ? uniqueRelicCount
+              ? uniqueGuardBlock
+              : id === "micheal_fallen_fury"
+                ? stackN
           : isRoundGrowthRelic
             ? growthStacks
             : 0;
@@ -938,7 +958,11 @@ function relicChipHtml(relic) {
                   : id === "round_heal_scaling"
                     ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
                     : id === "unique_relic_guard"
-                      ? `Relic Guard: reduce incoming damage by ${uniqueRelicCount} (${uniqueRelicCount} unique relics)`
+                      ? `Relic Guard: reduce incoming damage by ${uniqueGuardBlock} (${uniqueRelicCount} unique relics x ${uniqueGuardStacks} stacks)`
+                    : id === "double_draft_pick"
+                      ? "Twin Claim: if only this holder is assigned relics this round, they can draft 2 relics instead of 1"
+                    : id === "micheal_fallen_fury"
+                      ? `Micheal Relic: gains +${Math.max(0, 3 - aliveHeroes().length) * 10 * Math.max(1, stackN)}% ATK from fallen heroes (${Math.max(0, 3 - aliveHeroes().length)} dead x tier ${Math.max(1, stackN)})`
                     : id === "golgotha_heartsear"
                       ? `Golgotha Relic: every 3 turns, deal ${relicRoundTierStacks() * 10}% max HP damage to the highest-HP hero`
                       : id === "absolution_everpain"
@@ -974,6 +998,27 @@ function fighterEffectsHtml(f) {
   if (relics) parts.push(`<div class="fighter-relics" aria-label="Active relics">${relics}</div>`);
   if (chips.length) parts.push(`<div class="fighter-effects" aria-label="Active buffs and statuses">${chips.join("")}</div>`);
   return parts.join("");
+}
+
+function defeatSummaryHtml() {
+  const rows = (state.party || [])
+    .map((h) => {
+      const relics = h.relics || [];
+      const relicRow = relics.length
+        ? relics.map((r) => relicChipHtml({ ...r, holderRelics: relics })).join("")
+        : '<span class="status-panel-hint">No assigned relics</span>';
+      return `<article class="status-fighter">
+        <h4>${escapeHtml(h?.def?.name || "Unknown")}</h4>
+        <p class="stat-line">HP ${Math.max(0, Math.floor(Number(h?.hp || 0)))} / ${Math.max(1, Math.floor(Number(h?.maxHp || 1)))}</p>
+        <div class="fighter-relics">${relicRow}</div>
+      </article>`;
+    })
+    .join("");
+  return `<div class="defeat-summary">
+    <p>You reached round ${state.round} of ${COMBAT.TOTAL_ROUNDS}.</p>
+    <p>Party loadout at defeat:</p>
+    <div>${rows}</div>
+  </div>`;
 }
 
 function charDefReferenceBlockHtml(c) {
@@ -1304,11 +1349,17 @@ function makeDraftRelicInstance(base) {
 function addOrStackDraftRelic(hero, baseRelic) {
   const relicId = String(baseRelic?.id || "");
   hero.relics = hero.relics || [];
+  if (relicId === "double_draft_pick") {
+    if (hero.relics.some((r) => r.id === relicId)) return;
+    hero.relics.push(makeDraftRelicInstance(baseRelic));
+    return;
+  }
   if (
     relicId === "growth_hp_round" ||
     relicId === "growth_atk_round" ||
     relicId === "growth_hybrid_round" ||
-    relicId === "round_heal_scaling"
+    relicId === "round_heal_scaling" ||
+    relicId === "unique_relic_guard"
   ) {
     const existing = hero.relics.find((r) => r.id === relicId);
     if (existing) {
@@ -1331,7 +1382,13 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   subtitleEl.textContent = subtitle;
   list.innerHTML = "";
 
-  const pool = draftPoolRelicIds
+  const allHeroesHaveTwinClaim =
+    state.party.length === 3 &&
+    state.party.every((h) => (h.relics || []).some((r) => r.id === "double_draft_pick"));
+  const sourcePoolIds = allHeroesHaveTwinClaim
+    ? draftPoolRelicIds.filter((id) => id !== "double_draft_pick")
+    : draftPoolRelicIds;
+  const pool = sourcePoolIds
     .map((id) => RELIC_BY_ID[id])
     .filter(Boolean)
     .map((r) => ({ ...r }));
@@ -1341,8 +1398,61 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   }
   pool.splice(3);
   /** @type {{ heroId: string, relic: any } | null} */
-  let assigned = null;
+  let assignedPrimary = null;
+  /** @type {{ heroId: string, relic: any } | null} */
+  let assignedSecondary = null;
   let armedPoolIdx = -1;
+
+  const hasTwinClaim = (heroId) => {
+    const h = state.party.find((x) => x.def.id === heroId);
+    return !!h && (h.relics || []).some((r) => r.id === "double_draft_pick");
+  };
+  const canHeroTakeTwo = (heroId) => {
+    if (!hasTwinClaim(heroId)) return false;
+    const heroIds = [assignedPrimary?.heroId, assignedSecondary?.heroId].filter(Boolean);
+    return !heroIds.length || heroIds.every((id) => id === heroId);
+  };
+  const unassignBySlot = (slot) => {
+    if (slot === "secondary") {
+      if (!assignedSecondary) return;
+      pool.push(assignedSecondary.relic);
+      assignedSecondary = null;
+      return;
+    }
+    if (!assignedPrimary) return;
+    pool.push(assignedPrimary.relic);
+    if (assignedSecondary) {
+      assignedPrimary = assignedSecondary;
+      assignedSecondary = null;
+    } else {
+      assignedPrimary = null;
+    }
+  };
+  const assignToHero = (heroId, relic) => {
+    if (!assignedPrimary) {
+      assignedPrimary = { heroId, relic };
+      return;
+    }
+    if (assignedPrimary.heroId !== heroId) {
+      pool.push(assignedPrimary.relic);
+      if (assignedSecondary) pool.push(assignedSecondary.relic);
+      assignedPrimary = { heroId, relic };
+      assignedSecondary = null;
+      return;
+    }
+    if (canHeroTakeTwo(heroId)) {
+      if (!assignedSecondary) {
+        assignedSecondary = { heroId, relic };
+      } else {
+        pool.push(assignedSecondary.relic);
+        assignedSecondary = { heroId, relic };
+      }
+      return;
+    }
+    pool.push(assignedPrimary.relic);
+    assignedPrimary = { heroId, relic };
+    assignedSecondary = null;
+  };
 
   const root = document.createElement("div");
   root.className = "relic-draft-layout";
@@ -1369,9 +1479,10 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   const closeAndContinue = (applyAssignments) => {
     if (applyAssignments) {
       for (const h of state.party) {
-        const base = assigned && assigned.heroId === h.def.id ? assigned.relic : null;
-        if (!base) continue;
-        addOrStackDraftRelic(h, base);
+        const picks = [];
+        if (assignedPrimary && assignedPrimary.heroId === h.def.id) picks.push(assignedPrimary.relic);
+        if (assignedSecondary && assignedSecondary.heroId === h.def.id) picks.push(assignedSecondary.relic);
+        for (const base of picks) addOrStackDraftRelic(h, base);
       }
     }
     modalCard?.classList.remove("modal-relic-draft");
@@ -1385,11 +1496,9 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
   left.addEventListener("dragover", (ev) => ev.preventDefault());
   left.addEventListener("drop", (ev) => {
     ev.preventDefault();
-    const fromHeroId = ev.dataTransfer?.getData("text/relic-assigned-hero-id");
-    if (!fromHeroId) return;
-    if (!assigned || assigned.heroId !== fromHeroId) return;
-    pool.push(assigned.relic);
-    assigned = null;
+    const slot = ev.dataTransfer?.getData("text/relic-assigned-slot");
+    if (!slot) return;
+    unassignBySlot(slot);
     armedPoolIdx = -1;
     render();
   });
@@ -1422,7 +1531,7 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
       poolWrap.appendChild(chipWrap);
     });
     left.appendChild(poolWrap);
-    if (!pool.length) {
+      if (!pool.length) {
       const done = document.createElement("p");
       done.className = "status-panel-hint";
       done.textContent = "All new relics assigned. Drag a chip back here to unassign.";
@@ -1434,59 +1543,87 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
       slot.className = "relic-target-card";
       slot.dataset.heroId = h.def.id;
       const existing = (h.relics || []).map((r) => relicChipHtml(r)).join("");
-      const assignedRelic = assigned && assigned.heroId === h.def.id ? assigned.relic : null;
+      const hasTwin = hasTwinClaim(h.def.id);
+      const lockedToOtherHero = !!assignedPrimary && assignedPrimary.heroId !== h.def.id;
+      const assignedRelics = [];
+      if (assignedPrimary && assignedPrimary.heroId === h.def.id) {
+        assignedRelics.push({ slot: "primary", relic: assignedPrimary.relic });
+      }
+      if (assignedSecondary && assignedSecondary.heroId === h.def.id) {
+        assignedRelics.push({ slot: "secondary", relic: assignedSecondary.relic });
+      }
+      const twoPickHint = hasTwinClaim(h.def.id)
+        ? `<div class="status-panel-hint">Twin Claim: this holder can take 2 relics if no other ally is assigned one this round.</div>`
+        : "";
+      const primaryAssigned = assignedRelics.find((x) => x.slot === "primary");
+      const secondaryAssigned = assignedRelics.find((x) => x.slot === "secondary");
+      const primaryEnabled = !lockedToOtherHero;
+      const secondaryEnabled = !lockedToOtherHero && hasTwin && canHeroTakeTwo(h.def.id);
       slot.innerHTML = `
         <h4>${escapeHtml(h.def.name)}</h4>
         <div class="fighter-relics">${existing || '<span class="status-panel-hint">No assigned relics</span>'}</div>
-        <div class="relic-drop-zone">${assignedRelic ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-hero-id="${escapeHtml(h.def.id)}">${relicChipHtml({ ...assignedRelic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}</div>
+        ${twoPickHint}
+        <div class="relic-drop-row">
+          <div class="relic-drop-zone ${primaryEnabled ? "" : "is-disabled"}" data-drop-slot="primary">
+            ${primaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="primary">${relicChipHtml({ ...primaryAssigned.relic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}
+          </div>
+          ${hasTwin ? `<div class="relic-drop-zone ${secondaryEnabled ? "" : "is-disabled"}" data-drop-slot="secondary">${secondaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="secondary">${relicChipHtml({ ...secondaryAssigned.relic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}</div>` : ""}
+        </div>
       `;
-      const zone = slot.querySelector(".relic-drop-zone");
-      const assignedChip = slot.querySelector(".relic-draft-chip-wrap.is-assigned");
-      const assignedIcon = assignedChip?.querySelector(".relic-chip");
-      assignedIcon?.classList.add("relic-draft-chip");
-      assignedIcon?.setAttribute("draggable", "true");
-      assignedIcon?.addEventListener("dragstart", (ev) => {
-        ev.dataTransfer?.setData("text/relic-assigned-hero-id", h.def.id);
-        ev.dataTransfer.effectAllowed = "move";
-      });
-      assignedIcon?.addEventListener("click", () => {
-        if (!assigned || assigned.heroId !== h.def.id) return;
-        pool.push(assigned.relic);
-        assigned = null;
-        armedPoolIdx = -1;
-        render();
-      });
-      zone.addEventListener("click", () => {
-        if (!Number.isInteger(armedPoolIdx) || armedPoolIdx < 0 || armedPoolIdx >= pool.length) return;
-        const picked = pool.splice(armedPoolIdx, 1)[0];
-        if (assigned) pool.push(assigned.relic);
-        assigned = { heroId: h.def.id, relic: picked };
-        armedPoolIdx = -1;
-        render();
-      });
-      zone.addEventListener("dragover", (ev) => {
-        ev.preventDefault();
-        zone.classList.add("is-over");
-      });
-      zone.addEventListener("dragleave", () => zone.classList.remove("is-over"));
-      zone.addEventListener("drop", (ev) => {
-        ev.preventDefault();
-        zone.classList.remove("is-over");
-        const fromHeroId = ev.dataTransfer?.getData("text/relic-assigned-hero-id");
-        if (fromHeroId) {
-          if (!assigned || assigned.heroId !== fromHeroId) return;
-          assigned = { heroId: h.def.id, relic: assigned.relic };
+      slot.querySelectorAll(".relic-draft-chip-wrap.is-assigned").forEach((chipWrap) => {
+        const slotId = chipWrap.getAttribute("data-assigned-slot") || "primary";
+        const assignedIcon = chipWrap.querySelector(".relic-chip");
+        assignedIcon?.classList.add("relic-draft-chip");
+        assignedIcon?.setAttribute("draggable", "true");
+        assignedIcon?.addEventListener("dragstart", (ev) => {
+          ev.dataTransfer?.setData("text/relic-assigned-slot", slotId);
+          ev.dataTransfer.effectAllowed = "move";
+        });
+        assignedIcon?.addEventListener("click", () => {
+          unassignBySlot(slotId);
+          armedPoolIdx = -1;
           render();
-          return;
-        }
-        const idxRaw = ev.dataTransfer?.getData("text/relic-pool-idx");
-        const idx = Number(idxRaw);
-        if (!Number.isInteger(idx) || idx < 0 || idx >= pool.length) return;
-        const picked = pool.splice(idx, 1)[0];
-        if (assigned) pool.push(assigned.relic);
-        assigned = { heroId: h.def.id, relic: picked };
-        armedPoolIdx = -1;
-        render();
+        });
+      });
+      slot.querySelectorAll(".relic-drop-zone").forEach((zone) => {
+        const dropSlot = zone.getAttribute("data-drop-slot") || "primary";
+        const zoneEnabled = dropSlot === "secondary" ? secondaryEnabled : primaryEnabled;
+        zone.addEventListener("click", () => {
+          if (!zoneEnabled) return;
+          if (!Number.isInteger(armedPoolIdx) || armedPoolIdx < 0 || armedPoolIdx >= pool.length) return;
+          const picked = pool.splice(armedPoolIdx, 1)[0];
+          assignToHero(h.def.id, picked);
+          armedPoolIdx = -1;
+          render();
+        });
+        zone.addEventListener("dragover", (ev) => {
+          if (!zoneEnabled) return;
+          ev.preventDefault();
+          zone.classList.add("is-over");
+        });
+        zone.addEventListener("dragleave", () => zone.classList.remove("is-over"));
+        zone.addEventListener("drop", (ev) => {
+          if (!zoneEnabled) return;
+          ev.preventDefault();
+          zone.classList.remove("is-over");
+          const fromSlot = ev.dataTransfer?.getData("text/relic-assigned-slot");
+          if (fromSlot) {
+            const moved =
+              fromSlot === "secondary" ? assignedSecondary?.relic : assignedPrimary?.relic;
+            if (!moved) return;
+            unassignBySlot(fromSlot);
+            assignToHero(h.def.id, moved);
+            render();
+            return;
+          }
+          const idxRaw = ev.dataTransfer?.getData("text/relic-pool-idx");
+          const idx = Number(idxRaw);
+          if (!Number.isInteger(idx) || idx < 0 || idx >= pool.length) return;
+          const picked = pool.splice(idx, 1)[0];
+          assignToHero(h.def.id, picked);
+          armedPoolIdx = -1;
+          render();
+        });
       });
       right.appendChild(slot);
     }
