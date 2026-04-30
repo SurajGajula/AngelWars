@@ -27,8 +27,8 @@
     ]
   },
   {
-    "id": "principality",
-    "name": "Principality",
+    "id": "golgotha",
+    "name": "Golgotha",
     "baseStats": {
       "maxHp": 100,
       "attack": 10
@@ -50,6 +50,27 @@
         "stacks": 1,
         "intervalTurns": 3,
         "counter": 3
+      }
+    ]
+  },
+  {
+    "id": "micheal",
+    "name": "Micheal",
+    "baseStats": {
+      "maxHp": 100,
+      "attack": 10
+    },
+    "innateRelics": [
+      {
+        "id": "enemy_scale",
+        "stacks": 0,
+        "valueScale": 1
+      },
+      {
+        "id": "rapture",
+        "stacks": 0,
+        "intervalTurns": 10,
+        "counter": 10
       }
     ]
   }

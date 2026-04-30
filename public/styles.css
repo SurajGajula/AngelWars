@@ -480,6 +480,11 @@ body:has(#screen-party.active) .party-grid {
   font-size: 0.78rem;
 }
 
+.speed-btn {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 820px) {
   .battle-screen.active .toolbar {
     flex-wrap: nowrap;
@@ -513,6 +518,14 @@ body:has(#screen-party.active) .party-grid {
 
   .battle-screen.active .toolbar .mute-btn[aria-pressed="true"]::before {
     content: "🔇";
+  }
+
+  .battle-screen.active .toolbar .speed-btn {
+    min-width: 64px;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.7rem;
+    line-height: 1.1;
+    flex: 0 0 auto;
   }
 }
 

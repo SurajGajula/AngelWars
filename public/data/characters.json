@@ -15,8 +15,8 @@
     ]
   },
   {
-    "id": "ophanim",
-    "name": "Ophanim",
+    "id": "chariot",
+    "name": "Chariot",
     "baseStats": {
       "maxHp": 100,
       "attack": 10
@@ -46,8 +46,8 @@
     ]
   },
   {
-    "id": "virtue",
-    "name": "Virtue",
+    "id": "justice",
+    "name": "Justice",
     "baseStats": {
       "maxHp": 100,
       "attack": 10

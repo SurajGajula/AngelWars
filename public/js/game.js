@@ -6,6 +6,8 @@ import {
 
 /** Pause after each skill resolves (UI + pacing), including auto-repeat. */
 const SKILL_POST_DELAY_MS = 1000;
+const GAMEPLAY_SPEED_STEPS = Object.freeze([0.5, 1, 2]);
+let gameplaySpeedIdx = 1;
 
 /** @type {any[]} */
 let characterDefs = [];
@@ -34,6 +36,11 @@ const RELIC_LIBRARY = Object.freeze([
     id: "round_heal_scaling",
     name: "Mending Clock",
     desc: "Heal N HP each round (N = round number)",
+  },
+  {
+    id: "unique_relic_guard",
+    name: "Relic Guard",
+    desc: "Reduce incoming damage by 1 for each unique relic you have",
   },
 ]);
 const RELIC_BY_ID = Object.freeze(Object.fromEntries(RELIC_LIBRARY.map((r) => [r.id, r])));
@@ -118,6 +125,29 @@ function setBgmMuted(muted) {
   btn.setAttribute("aria-label", muted ? "Unmute background music" : "Mute background music");
 }
 
+function gameplaySpeed() {
+  const raw = Number(GAMEPLAY_SPEED_STEPS[gameplaySpeedIdx] || 1);
+  return raw > 0 ? raw : 1;
+}
+
+function scaledDelay(ms) {
+  const base = Math.max(0, Number(ms) || 0);
+  return Math.max(0, Math.round(base / gameplaySpeed()));
+}
+
+function syncGameplaySpeedButton() {
+  const btn = document.getElementById("btn-game-speed");
+  if (!btn) return;
+  const spd = gameplaySpeed();
+  btn.textContent = `Speed ${spd}x`;
+  btn.setAttribute("aria-label", `Gameplay speed ${spd}x`);
+}
+
+function cycleGameplaySpeed() {
+  gameplaySpeedIdx = (gameplaySpeedIdx + 1) % GAMEPLAY_SPEED_STEPS.length;
+  syncGameplaySpeedButton();
+}
+
 function normalizeCharacterDefs(list) {
   return (list || []).map((c) => ({
     ...c,
@@ -178,12 +208,21 @@ async function filterDefsWithSprites(defs) {
 
 function defaultRelicsForDef(def, kind, opts = {}) {
   const id = String(def?.id || "").toLowerCase();
+  const scale = Number(opts.enemyScale || 1);
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
   if (Array.isArray(def?.innateRelics) && def.innateRelics.length) {
-    return def.innateRelics.map((r) => ({ ...r }));
+    const relics = def.innateRelics.map((r) => ({ ...r }));
+    if (kind === "enemy") {
+      const scaleRelic = relics.find((r) => r.id === "enemy_scale");
+      if (scaleRelic) {
+        scaleRelic.valueScale = Number(safeScale.toFixed(2));
+      } else {
+        relics.unshift({ id: "enemy_scale", stacks: 0, valueScale: Number(safeScale.toFixed(2)) });
+      }
+    }
+    return relics;
   }
   if (kind === "enemy") {
-    const scale = Number(opts.enemyScale || 1);
-    const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
     const relics = [
       { id: "enemy_scale", stacks: 0, valueScale: Number(safeScale.toFixed(2)) },
       { id: "rapture", stacks: 0, intervalTurns: 10, counter: 10 },
@@ -547,7 +586,12 @@ function applyDamage(target, amount, opts = {}) {
   const hpNow = Number(target.hp);
   const safeHp = Number.isFinite(hpNow) ? hpNow : 0;
   const hit = Number(amount);
-  const safeHit = Number.isFinite(hit) ? Math.max(0, Math.floor(hit)) : 0;
+  const rawHit = Number.isFinite(hit) ? Math.max(0, Math.floor(hit)) : 0;
+  const hasUniqueGuard = (target?.relics || []).some((r) => r.id === "unique_relic_guard");
+  const uniqueRelicCount = hasUniqueGuard
+    ? new Set((target?.relics || []).map((r) => String(r?.id || "")).filter(Boolean)).size
+    : 0;
+  const safeHit = Math.max(0, rawHit - uniqueRelicCount);
 
   if (
     allowRedirect &&
@@ -734,8 +778,8 @@ function runNextTurn() {
       }
       window.setTimeout(() => {
         if (!battleOver()) endActorTurn(actor);
-      }, SKILL_POST_DELAY_MS);
-    }, 280);
+      }, scaledDelay(SKILL_POST_DELAY_MS));
+    }, scaledDelay(280));
     renderBattle();
     return;
   }
@@ -756,7 +800,7 @@ function resolveBattleOutcome() {
       document.getElementById("end-title").textContent = "Defeat";
       document.getElementById("end-body").textContent = `You reached round ${state.round} of ${COMBAT.TOTAL_ROUNDS}.`;
       showScreen("screen-end");
-    }, 800);
+    }, scaledDelay(800));
     return;
   }
   if (enemyDead) {
@@ -764,10 +808,10 @@ function resolveBattleOutcome() {
     logLine(`<span class="system">Victory — round ${state.round} cleared!</span>`);
     rallyDeadHeroesAfterVictory();
     if (state.round >= COMBAT.TOTAL_ROUNDS) {
-      setTimeout(() => advanceToNextRound(), 500);
+      setTimeout(() => advanceToNextRound(), scaledDelay(500));
       return;
     }
-    setTimeout(() => openUpgradeModal(), 500);
+    setTimeout(() => openUpgradeModal(), scaledDelay(500));
   }
 }
 
@@ -849,6 +893,11 @@ function relicChipHtml(relic) {
   const pct = Math.max(0, Number(relic?.valuePercent || 0));
   const scaleValue = Number(relic?.valueScale || 0);
   const showsRound = !!relic?.valueRound;
+  const uniqueRelicCount = new Set(
+    (Array.isArray(relic?.holderRelics) ? relic.holderRelics : [])
+      .map((r) => String(r?.id || ""))
+      .filter(Boolean)
+  ).size;
   const isRoundGrowthRelic =
     id === "growth_hp_round" || id === "growth_atk_round" || id === "growth_hybrid_round";
   const roundCounter = Math.max(1, Number(state.round || 1));
@@ -865,6 +914,8 @@ function relicChipHtml(relic) {
             ? stackN
           : id === "round_heal_scaling"
             ? roundCounter
+            : id === "unique_relic_guard"
+              ? uniqueRelicCount
           : isRoundGrowthRelic
             ? growthStacks
             : 0;
@@ -886,6 +937,8 @@ function relicChipHtml(relic) {
                   ? `Round Relic: gain +${growthStacks} Max HP and +${growthStacks} ATK at the start of each round`
                   : id === "round_heal_scaling"
                     ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
+                    : id === "unique_relic_guard"
+                      ? `Relic Guard: reduce incoming damage by ${uniqueRelicCount} (${uniqueRelicCount} unique relics)`
                     : id === "golgotha_heartsear"
                       ? `Golgotha Relic: every 3 turns, deal ${relicRoundTierStacks() * 10}% max HP damage to the highest-HP hero`
                       : id === "absolution_everpain"
@@ -902,7 +955,8 @@ function relicChipHtml(relic) {
 
 /** Compact HTML for active relics + stat buffs. */
 function fighterEffectsHtml(f) {
-  const relics = (f.relics || []).map((r) => relicChipHtml(r)).join("");
+  const holderRelics = f.relics || [];
+  const relics = holderRelics.map((r) => relicChipHtml({ ...r, holderRelics })).join("");
   const chips = [];
   for (const b of f.buffs || []) {
     if ((b.stacks || 0) > 0 || (b.duration || 0) > 0) {
@@ -926,7 +980,7 @@ function charDefReferenceBlockHtml(c) {
   const s = c.baseStats;
   const relics = defaultRelicsForDef(c, "hero");
   const relicRow = relics.length
-    ? `<div class="fighter-relics" aria-label="Default relics">${relics.map((r) => relicChipHtml(r)).join("")}</div>`
+    ? `<div class="fighter-relics" aria-label="Default relics">${relics.map((r) => relicChipHtml({ ...r, holderRelics: relics })).join("")}</div>`
     : "";
   return `<div class="status-fighter">
     <h4>${escapeHtml(c.name)}</h4>
@@ -1207,7 +1261,7 @@ function runHeroSkillTurn(actor, skill) {
         if (!battleOver()) endActorTurn(actor);
         else state.battleInputLocked = false;
         resolve();
-      }, SKILL_POST_DELAY_MS);
+      }, scaledDelay(SKILL_POST_DELAY_MS));
     } catch (err) {
       console.error("[battle] hero action failed", err);
       state.battleInputLocked = false;
@@ -1544,7 +1598,7 @@ function renderPartyPicker() {
             <span>HP ${c.baseStats.maxHp}</span>
             <span>ATK ${c.baseStats.attack}</span>
           </div>
-          ${defaultRelicsForDef(c, "hero").length ? `<div class="fighter-relics">${defaultRelicsForDef(c, "hero").map((r) => relicChipHtml(r)).join("")}</div>` : ""}
+          ${defaultRelicsForDef(c, "hero").length ? `<div class="fighter-relics">${defaultRelicsForDef(c, "hero").map((r, _, all) => relicChipHtml({ ...r, holderRelics: all })).join("")}</div>` : ""}
         </div>
         <div class="party-card-sprite" aria-hidden="true">
           <img class="party-card-sprite-img" src="sprites/${c.id}.png" alt="" draggable="false" />
@@ -1638,6 +1692,12 @@ async function init() {
       if (!bgm) return;
       setBgmMuted(!bgm.muted);
     });
+  }
+  const speedBtn = document.getElementById("btn-game-speed");
+  syncGameplaySpeedButton();
+  if (speedBtn && !speedBtn.dataset.bound) {
+    speedBtn.dataset.bound = "1";
+    speedBtn.addEventListener("click", cycleGameplaySpeed);
   }
 }
 
