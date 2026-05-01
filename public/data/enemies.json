@@ -77,5 +77,31 @@
         "stacks": 1
       }
     ]
+  },
+  {
+    "id": "chorus",
+    "name": "Chorus",
+    "baseStats": {
+      "maxHp": 100,
+      "attack": 10
+    },
+    "innateRelics": [
+      {
+        "id": "enemy_scale",
+        "stacks": 0,
+        "valueScale": 1
+      },
+      {
+        "id": "rapture",
+        "stacks": 0,
+        "intervalTurns": 10,
+        "counter": 10
+      },
+      {
+        "id": "chorus_diminuendo",
+        "stacks": 1,
+        "counter": 5
+      }
+    ]
   }
 ]

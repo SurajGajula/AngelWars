@@ -242,6 +242,9 @@ function defaultRelicsForDef(def, kind, opts = {}) {
     if (id === "micheal") {
       relics.push({ id: "micheal_fallen_fury", stacks: 1 });
     }
+    if (id === "chorus") {
+      relics.push({ id: "chorus_diminuendo", stacks: 1, counter: 5 });
+    }
     return relics;
   }
   if (id === "chariot") {
@@ -258,6 +261,9 @@ function defaultRelicsForDef(def, kind, opts = {}) {
   }
   if (id === "justice") {
     return [{ id: "justice_equal_atk", stacks: 0 }];
+  }
+  if (id === "cradle") {
+    return [{ id: "cradle_last_stand_revive", stacks: 0, valuePercent: 20 }];
   }
   return [];
 }
@@ -375,6 +381,30 @@ function processRelicsOnTurnAdvance() {
             );
           }
           relic.counter = interval;
+        } else {
+          relic.counter = counter - 1;
+        }
+        continue;
+      }
+      if (relic.id === "chorus_diminuendo" && unit.kind === "enemy") {
+        const tier = Math.min(5, Math.max(1, Number(relic.stacks || 1)));
+        const interval = Math.max(1, 6 - tier);
+        const counter = Math.max(1, Number(relic.counter || interval));
+        if (counter <= 1) {
+          const names = [];
+          for (const h of state.party) {
+            const curMax = Math.max(1, Math.floor(Number(h.maxHp || 1)));
+            const nh = Math.max(1, curMax - 1);
+            h.maxHp = nh;
+            h.hp = Math.min(Math.max(0, Math.floor(Number(h.hp || 0))), nh);
+            names.push(h.def.name);
+          }
+          relic.stacks = Math.min(5, tier + 1);
+          const nextTier = Math.min(5, Math.max(1, Number(relic.stacks || 1)));
+          relic.counter = Math.max(1, 6 - nextTier);
+          logLine(
+            `<span class="enemy">${escapeHtml(unit.def.name)}</span>'s <strong>Diminuendo</strong> cuts party max HP by <strong>1</strong> (${escapeHtml(names.join(", "))}); next pulse every <strong>${relic.counter}</strong> turn(s).`
+          );
         } else {
           relic.counter = counter - 1;
         }
@@ -695,6 +725,28 @@ function performSkill(actor, skill) {
         queueCombatFloat(ally.def.id, `+${healFromSeraph}`, "heal");
       }
     }
+    const cradleRelic = (actor.relics || []).find((r) => r.id === "cradle_last_stand_revive");
+    if (cradleRelic) {
+      const living = aliveHeroes();
+      if (living.length === 1 && living[0] === actor) {
+        const pct = Math.max(0, Number(cradleRelic.valuePercent || 20)) / 100;
+        const revived = [];
+        for (const ally of state.party) {
+          if (ally === actor) continue;
+          const restore = Math.max(1, Math.floor(ally.maxHp * pct));
+          if (ally.hp < restore) {
+            ally.hp = restore;
+            queueCombatFloat(ally.def.id, `+${restore}`, "heal");
+            revived.push(ally.def.name);
+          }
+        }
+        if (revived.length) {
+          logLine(
+            `<span class="${atkCls}">${name}</span>'s <strong>Last Cradle</strong> restores ${escapeHtml(revived.join(", "))} to ${Math.round(pct * 100)}% HP.`
+          );
+        }
+      }
+    }
     return;
   }
   const heroes = aliveHeroes();
@@ -903,12 +955,11 @@ function buffChipLabel(b) {
 function relicChipHtml(relic) {
   const id = String(relic?.id || "");
   const stackN = Math.max(0, Number(relic?.stacks || 0));
+  const hasHolderContext = Array.isArray(relic?.holderRelics);
   const growthStacks = Math.max(1, Number(relic?.stacks || 0));
   const interval = Math.max(0, Number(relic?.intervalTurns || 0));
-  const curCounter = Math.max(0, Number(relic?.counter || interval || 0));
   const pct = Math.max(0, Number(relic?.valuePercent || 0));
   const scaleValue = Number(relic?.valueScale || 0);
-  const showsRound = !!relic?.valueRound;
   const uniqueRelicCount = new Set(
     (Array.isArray(relic?.holderRelics) ? relic.holderRelics : [])
       .map((r) => String(r?.id || ""))
@@ -919,27 +970,8 @@ function relicChipHtml(relic) {
   const isRoundGrowthRelic =
     id === "growth_hp_round" || id === "growth_atk_round" || id === "growth_hybrid_round";
   const roundCounter = Math.max(1, Number(state.round || 1));
-  const scaleCounterText = scaleValue > 0 ? scaleValue.toFixed(2) : "";
-  const counterValue = showsRound
-    ? roundCounter
-    : scaleValue > 0
-      ? scaleCounterText
-      : pct > 0
-        ? pct
-        : interval > 0
-          ? curCounter
-          : id === "absolution_everpain"
-            ? stackN
-          : id === "round_heal_scaling"
-            ? roundCounter
-            : id === "unique_relic_guard"
-              ? uniqueGuardBlock
-              : id === "micheal_fallen_fury"
-                ? stackN
-          : isRoundGrowthRelic
-            ? growthStacks
-            : 0;
-  const counter = counterValue ? `<span class="relic-counter">${counterValue}</span>` : "";
+  const stackBadge = stackN > 0 ? stackN : 0;
+  const counter = stackBadge ? `<span class="relic-counter">${stackBadge}</span>` : "";
   const title =
     id === "rapture"
       ? `Rapture: +10% ATK/MaxHP every ${interval || 10} turns (current +${stackN * 10}%)`
@@ -958,11 +990,21 @@ function relicChipHtml(relic) {
                   : id === "round_heal_scaling"
                     ? `Round Relic: heal ${roundCounter * growthStacks} HP at the start of each round (${roundCounter} x ${growthStacks} stacks)`
                     : id === "unique_relic_guard"
-                      ? `Relic Guard: reduce incoming damage by ${uniqueGuardBlock} (${uniqueRelicCount} unique relics x ${uniqueGuardStacks} stacks)`
+                      ? (hasHolderContext
+                        ? `Relic Guard: reduce incoming damage by ${uniqueGuardBlock} (${uniqueRelicCount} unique relics x ${uniqueGuardStacks} stacks)`
+                        : `Relic Guard: reduce incoming damage by unique relics x stacks`)
                     : id === "double_draft_pick"
                       ? "Twin Claim: if only this holder is assigned relics this round, they can draft 2 relics instead of 1"
                     : id === "micheal_fallen_fury"
                       ? `Micheal Relic: gains +${Math.max(0, 3 - aliveHeroes().length) * 10 * Math.max(1, stackN)}% ATK from fallen heroes (${Math.max(0, 3 - aliveHeroes().length)} dead x tier ${Math.max(1, stackN)})`
+                    : id === "cradle_last_stand_revive"
+                      ? "Cradle Relic: if Cradle attacks while the last hero alive, revive and heal the other allies to 20% HP"
+                    : id === "chorus_diminuendo"
+                      ? (() => {
+                          const t = Math.min(5, Math.max(1, stackN || 1));
+                          const every = Math.max(1, 6 - t);
+                          return `Chorus Relic: all allies lose 1 max HP every ${every} full turn(s); stacks accelerate up to 5 (then every turn)`;
+                        })()
                     : id === "golgotha_heartsear"
                       ? `Golgotha Relic: every 3 turns, deal ${relicRoundTierStacks() * 10}% max HP damage to the highest-HP hero`
                       : id === "absolution_everpain"
@@ -1004,12 +1046,13 @@ function defeatSummaryHtml() {
   const rows = (state.party || [])
     .map((h) => {
       const relics = h.relics || [];
+      const atk = Math.max(0, Math.floor(Number(h?.attack || 0)));
       const relicRow = relics.length
         ? relics.map((r) => relicChipHtml({ ...r, holderRelics: relics })).join("")
         : '<span class="status-panel-hint">No assigned relics</span>';
       return `<article class="status-fighter">
         <h4>${escapeHtml(h?.def?.name || "Unknown")}</h4>
-        <p class="stat-line">HP ${Math.max(0, Math.floor(Number(h?.hp || 0)))} / ${Math.max(1, Math.floor(Number(h?.maxHp || 1)))}</p>
+        <p class="stat-line">HP ${Math.max(0, Math.floor(Number(h?.hp || 0)))} / ${Math.max(1, Math.floor(Number(h?.maxHp || 1)))} · ATK ${atk}</p>
         <div class="fighter-relics">${relicRow}</div>
       </article>`;
     })
@@ -1542,7 +1585,13 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
       const slot = document.createElement("article");
       slot.className = "relic-target-card";
       slot.dataset.heroId = h.def.id;
-      const existing = (h.relics || []).map((r) => relicChipHtml(r)).join("");
+      const projectedHolderRelics = () => {
+        const base = [...(h.relics || [])];
+        if (assignedPrimary && assignedPrimary.heroId === h.def.id) base.push(assignedPrimary.relic);
+        if (assignedSecondary && assignedSecondary.heroId === h.def.id) base.push(assignedSecondary.relic);
+        return base;
+      };
+      const existing = (h.relics || []).map((r) => relicChipHtml({ ...r, holderRelics: projectedHolderRelics() })).join("");
       const hasTwin = hasTwinClaim(h.def.id);
       const lockedToOtherHero = !!assignedPrimary && assignedPrimary.heroId !== h.def.id;
       const assignedRelics = [];
@@ -1565,9 +1614,9 @@ function openRelicDraftModal({ title, subtitle, onDone }) {
         ${twoPickHint}
         <div class="relic-drop-row">
           <div class="relic-drop-zone ${primaryEnabled ? "" : "is-disabled"}" data-drop-slot="primary">
-            ${primaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="primary">${relicChipHtml({ ...primaryAssigned.relic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}
+            ${primaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="primary">${relicChipHtml({ ...primaryAssigned.relic, counter: 1, holderRelics: projectedHolderRelics() })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}
           </div>
-          ${hasTwin ? `<div class="relic-drop-zone ${secondaryEnabled ? "" : "is-disabled"}" data-drop-slot="secondary">${secondaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="secondary">${relicChipHtml({ ...secondaryAssigned.relic, counter: 1 })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}</div>` : ""}
+          ${hasTwin ? `<div class="relic-drop-zone ${secondaryEnabled ? "" : "is-disabled"}" data-drop-slot="secondary">${secondaryAssigned ? `<span class="relic-draft-chip-wrap is-assigned" draggable="true" data-assigned-slot="secondary">${relicChipHtml({ ...secondaryAssigned.relic, counter: 1, holderRelics: projectedHolderRelics() })}</span>` : '<span class="relic-drop-plus" aria-hidden="true">+</span>'}</div>` : ""}
         </div>
       `;
       slot.querySelectorAll(".relic-draft-chip-wrap.is-assigned").forEach((chipWrap) => {

@@ -72,5 +72,20 @@
         "stacks": 0
       }
     ]
+  },
+  {
+    "id": "cradle",
+    "name": "Cradle",
+    "baseStats": {
+      "maxHp": 100,
+      "attack": 10
+    },
+    "innateRelics": [
+      {
+        "id": "cradle_last_stand_revive",
+        "stacks": 0,
+        "valuePercent": 20
+      }
+    ]
   }
 ]
